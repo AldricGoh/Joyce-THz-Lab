@@ -1,0 +1,38 @@
+Metadata-Version: 2.4
+Name: picosdk
+Version: 1.0
+Summary: PicoSDK Python wrapper
+Home-page: https://www.picotech.com
+Author: Pico Technology Ltd
+Author-email: support@picotech.com
+License: ISC
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: ISC License (ISCL)
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Topic :: Scientific/Engineering
+Requires-Dist: numpy>=1.12.1
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: home-page
+Dynamic: license
+Dynamic: requires-dist
+Dynamic: summary
+
+Dependencies -- IMPORTANT
+
+Coded in Python 3.13.2. Ensure environment path is set to such a Python version, with the relevant dependencies installed within it.
+
+Make sure to install drivers and command interfaces for:
+- MCM3000 4.3 (You may have to email Thorlabs for it, not available online) 
+- Newport DLS
+- Picoscope 4000
+- SC10

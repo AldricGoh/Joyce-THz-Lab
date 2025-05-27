@@ -1,0 +1,129 @@
+{
+    "experiments":{
+        "Dark THz": {
+            "pulses": 4,
+            "sampling counts": 10,
+            "repeats": 8,
+            "step frequency": 100
+        },
+        "Pump decay": {
+            "pulses": 4,
+            "sampling counts": 10,
+            "repeats": 30,
+            "step frequency": {
+                "high": 1000,
+                "medium": 500,
+                "low": 100
+            }
+        },
+        "OPTP": {
+            "pulses": 4,
+            "sampling counts": 10,
+            "repeats": 30,
+            "step frequency": 400
+        }
+    },
+    "main laser": {
+        "Model": "Ascend",
+        "pulse duration": 0.0002
+    },
+    "DLS": {
+        "THz DLS":{
+            "length": 125,
+            "serial port": "COM11"
+        },
+        "Pump DLS":{
+            "length": 325,
+            "serial port": "COM5"
+        }
+    },
+    "picoscope": {
+        "model": "4262",
+        "bit size": 16,
+        "timebase": 1e-7,
+        "trigger":{
+            "trigger threshold": 5000,
+            "pretrigger samples": 1000,
+            "trigger delay": 0,
+            "autotrigger": 8
+        }
+    },
+    "FWxC": {
+        "fw1": {
+            "serial port": "COM6",
+            "baud rate": 115200,
+            "filters":{
+                "1": {
+                    "value": "A",
+                    "power": 0.5
+                },
+                "2": {
+                    "value": "B",
+                    "power": 0.5
+                },
+                "3": {
+                    "value": "C",
+                    "power": 0.5
+                },
+                "4": {
+                    "value": "D",
+                    "power": 0.5
+                },
+                "5": {
+                    "value": "E",
+                    "power": 0.5
+                },
+                "6": {
+                    "value": "F",
+                    "power": 0.5
+                }
+            }
+        },
+        "fw2": {
+            "serial port": "COM7",
+            "baud rate": 115200, 
+            "filters":{
+                "1": {
+                    "value": "A",
+                    "power": 0.5
+                },
+                "2": {
+                    "value": "B",
+                    "power": 0.5
+                },
+                "3": {
+                    "value": "C",
+                    "power": 0.5
+                },
+                "4": {
+                    "value": "D",
+                    "power": 0.5
+                },
+                "5": {
+                    "value": "E",
+                    "power": 0.5
+                },
+                "6": {
+                    "value": "F",
+                    "power": 0.5
+                }
+            }
+        }
+    },
+    "SC10": {
+        "commands": ["Close shutter", "Open shutter"],
+        "serial port": "COM1",
+        "baud rate": 9600
+    },
+    "notifications": {
+        "email": {
+            "enabled": true,
+            "address": {
+                "azkg2@cam.ac.uk": "azkg2@cam.ac.uk"
+            },
+            "message_after_every_run": "Hey! The run is done! You might want to check it before going onto the next run.",
+            "message_after_exp_done": "Woohoo! The experiment is done! Here are the results:"
+        }
+    },
+    "C": 299792458
+  }
