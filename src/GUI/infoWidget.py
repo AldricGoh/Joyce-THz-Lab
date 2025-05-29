@@ -4,89 +4,66 @@ import sys
 import json as js
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QGridLayout, QPushButton, QCheckBox,
-    QLabel, QComboBox, QFileDialog, QLineEdit, QListWidget
+    QGroupBox, QLabel, QComboBox, QFileDialog, QLineEdit, QListWidget, 
 )
-from src.GUI.usefulWidgets import ResizingStackedWidget
-from src.instruments.DLS import DLS
-# Import experiment classes here
-from src.control.experiments import (
-    darkTHz, OPTP, pumpDecay
-)
-import os
+from PyQt6.QtGui import QFont
+from src.GUI.usefulWidgets import TinyHisPlotWidget
 
 
-with open(r'config\systemDefaults.JSON') as f:
+with open(r"config\systemDefaults.JSON") as f:
     defaults = js.load(f)
 
-class InfoWidget(QWidget):
-    """ Widget to display information for the main GUI """
+class InfoWidgets:
+    """ Widgets to display information for the main GUI """
+    class WaveformInfo(QGroupBox):
+        """ Widget to display waveform information """
+        def __init__(self,
+                     name: str = "Waveform Information",
+                     columns: int = 2,
+                     fontsize: int = 12):
+            """ Initialize the waveform information widget """
+            super().__init__(name)
+            self.setStyleSheet(f""" QLabel {{
+                               font-size: {fontsize}pt;
+                               }} """)
+            self.layout = QGridLayout()
+            self.setLayout(self.layout)
+            self.variables = {"Saturation": QLabel("All good"),
+                              "Balance": QLabel("0.0"),
+                              "E_off max": QLabel("0.0"),
+                              "E_off min": QLabel("0.0"),
+                              "E_on max": QLabel("0.0"),
+                              "E_on min": QLabel("0.0"),
+                              "DT max": QLabel("0.0"),
+                              "DT min": QLabel("0.0")}
+
+            for i, key in enumerate(self.variables.keys()):
+                row = i // columns
+                black_col = i % columns
+                col = black_col * 2
+                self.layout.addWidget(QLabel(f"{key}:"), row, col)
+                self.layout.addWidget(self.variables[key], row, col+1)
+
+            self.balance_histogram = TinyHisPlotWidget()
+            self.layout.addWidget(self.balance_histogram, 4, 0, 2, 2)
+            self.layout.setRowMinimumHeight(4, 50)
+
+        def update_info(self, data: dict):
+            """ Update the waveform information widget with new data """
+            if data["Saturation"]:
+                self.variables["Saturation"].setText(
+                    "WARNING! Channel overrange!")
+            self.variables["Balance"].setText(f"{data["A"][-1]:.3f}")
+            # Update the balance histogram
+            self.balance_histogram.update_plot(data["A"])
+            for key in ["E_off", "E_on", "DT"]:
+                self.variables[f"{key} max"].setText(
+                    f"{data[f"{key} max"][0]:.3f} @ "
+                    f"{data[f"{key} max"][1]:.3f} mm")
+                self.variables[f"{key} min"].setText(
+                    f"{data[f"{key} min"][0]:.3f} @ "
+                    f"{data[f"{key} min"][1]:.3f} mm")
+
+    def __init__(self):
+        self.WaveformInfo = InfoWidgets.WaveformInfo("Waveform Information")
     
-    def __init__(self, thz_dls: DLS , pump_dls: DLS):
-        super().__init__()
-        self.program_list = []
-        self.thz_dls = thz_dls
-        self.pump_dls = pump_dls
-        self.layout = QGridLayout()
-        self.layout.setRowStretch(0|1|2|3|4|5, 1)
-        self.setLayout(self.layout)
-        self.info_menu()
-
-    def info_menu(self):
-        """ Create the main input menu for the GUI """
-
-        self.dir_path_text = QLineEdit()
-        self.dir_path_text.setPlaceholderText("Enter folder path")
-
-        select_dir_button = QPushButton("Browse")
-        select_dir_button.clicked.connect(self.selectDirectoryDialog)
-
-        self.sample_text = QLineEdit()
-        self.sample_text.setPlaceholderText("Enter sample name")
-
-        self.save_CB = QCheckBox("Save data as")
-        self.save_CB.setChecked(True)
-
-        self.file_type = QComboBox()
-        self.file_type.addItems(["txt", "json", "hdf5"])
-        self.file_type.setCurrentText("hdf5")
-
-        self.experiments = QComboBox()
-        self.experiments.addItems(defaults["experiments"].keys())
-        self.experiments.activated.connect(self.select_experiment_type)
-
-        self.program_widget = QListWidget()
-        self.add_experiment_button = QPushButton("Add\nexperiment")
-        self.add_experiment_button.clicked.connect(self.add_experiment)
-        self.remove_experiment_button = QPushButton("Remove\nexperiment")
-        self.remove_experiment_button.clicked.connect(
-            self.remove_experiment)
-
-        self.run_exp_button = QPushButton("Run experiments")
-        
-        self.layout.addWidget(QLabel('Folder:'), 0, 0)
-        self.layout.addWidget(self.dir_path_text, 0, 1, 1, 10)
-        self.layout.addWidget(select_dir_button, 0, 11)
-
-        self.layout.addWidget(QLabel('Experiment Name:'), 1, 0)
-        self.layout.addWidget(self.sample_text, 1, 1, 1, 9)
-        self.layout.addWidget(self.save_CB, 1, 10)
-        self.layout.addWidget(self.file_type, 1, 11)
-
-        self.layout.addWidget(self.run_exp_button, 2, 0)
-        self.layout.addWidget(QLabel('Sampling Mode:'), 2, 6)
-        self.layout.addWidget(self.experiments, 2, 7)
-
-        self.layout.addWidget(self.program_widget, 3, 0, 5, 5)
-        self.layout.addWidget(self.add_experiment_button, 3, 5)
-        self.layout.addWidget(self.remove_experiment_button, 4, 5)
-        
-        # TODO: Add new experiment input widget here. Follow the templates.
-        self.experiment_stack = ResizingStackedWidget(self)
-        self.darkTHz_widget = darkTHz.input_widget()
-        self.OPTP_widget = OPTP.input_widget()
-        self.PD_widget = pumpDecay.input_widget()
-        self.layout.addWidget(self.experiment_stack, 3, 6, 3, 5)
-        self.experiment_stack.addWidget(self.darkTHz_widget.GUI)
-        self.experiment_stack.addWidget(self.PD_widget.GUI)
-        self.experiment_stack.addWidget(self.OPTP_widget.GUI)
-        self.experiment_stack.adjustSize()

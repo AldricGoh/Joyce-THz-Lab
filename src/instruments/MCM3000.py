@@ -1,13 +1,21 @@
 from struct import pack,unpack
 import serial
 import time
+from src.instruments.instrument import Instrument
 
-'''
-MCM3001 and PLS-X example 
-Successfully tested in Python 3.6.4 and Python 2.7.14
+class MCM3000(Instrument):
+	'''
+	Class for controlling the MCM3000 PLSXY stage. 
 
-'''
+	This class is a wrapper for the MCM3000 PLSXY stage and provides
+	methods for initializing the stage, getting position, absolute
+	moves, and checking status. 
+	'''
+	def __init__(self, name):
+		super().__init__(name)
+		self.type = "motion stage"
 
+	def setup(self, port, baud_rate=115200, byte_size=8, stop_bits=1):
 
 def Initialize(Port,Baud_Rate=115200,ByteSize=8,StopBits=1):
 

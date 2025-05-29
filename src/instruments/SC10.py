@@ -15,7 +15,7 @@ class SC10(Instrument):
         str1 = create_string_buffer(10240)
         result = SC10.sc10Lib.List(str1, 10240)
         devicesStr = str1.value.decode("utf-8",
-                                       "ignore").rstrip('\x00').split(',')
+                                       "ignore").rstrip("\x00").split(",")
         length = len(devicesStr)
         i = 0
         devices = []
@@ -23,7 +23,7 @@ class SC10(Instrument):
         while i < length:
             str2 = devicesStr[i]
             if i % 2 == 0:
-                if str2 != '':
+                if str2 != "":
                     devInfo[0] = str2
                 else:
                     i += 1
@@ -58,7 +58,7 @@ class SC10(Instrument):
         """
         ret = -1
         if SC10.isLoad:
-            ret = SC10.sc10Lib.Open(serialNo.encode('utf-8'), nBaud, timeout)
+            ret = SC10.sc10Lib.Open(serialNo.encode("utf-8"), nBaud, timeout)
             if ret >= 0:
                 self.hdl = ret
             else:
@@ -75,7 +75,7 @@ class SC10(Instrument):
         """
         ret = -1
         if SC10.isLoad:
-            ret = SC10.sc10Lib.IsOpen(serialNo.encode('utf-8'))
+            ret = SC10.sc10Lib.IsOpen(serialNo.encode("utf-8"))
             if ret == 1:
                 return True
             else:
@@ -132,6 +132,6 @@ class SC10(Instrument):
         """
         ret = -1
         if self.hdl >= 0:
-            self.set_command("Close shutter")
+            self.set_command("close")
             ret = SC10.sc10Lib.Close(self.hdl)
         return ret
