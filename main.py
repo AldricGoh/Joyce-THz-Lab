@@ -81,6 +81,12 @@ class MainWindow(QMainWindow):
         tab = QWidget()
         layout = QVBoxLayout()
         self.data_plots = PlotManager()
+        for item in self.data_plots.THz_signal_data.checklist.keys():
+            self.data_plots.THz_signal_data.checklist[
+                item].stateChanged.connect(self.data_plots.update_plots)
+        for item in self.data_plots.THz_spectra_data.checklist.keys():
+            self.data_plots.THz_spectra_data.checklist[
+                item].stateChanged.connect(self.data_plots.update_plots)
         layout.addWidget(self.data_plots)
         tab.setLayout(layout)
         return tab
@@ -214,10 +220,12 @@ class MainWindow(QMainWindow):
                                     self.fw2,
                                     self.data_plots)
             if self.experiment.stop_experiment:
+                self.experiment.stop_experiment = False
                 break
 
         # Close connections to the instruments
         self.wind_down()
+        return
 
     def set_kill_program(self):
         """

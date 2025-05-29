@@ -14,7 +14,7 @@ from time import *
 
 # TODO: Try to simplify the code
 
-with open(r'config/systemDefaults.json') as f:
+with open(r"config/systemDefaults.json") as f:
     defaults = js.load(f)
 
 class Experiment:
@@ -131,6 +131,8 @@ class Experiment:
             fw1.set_command("position from filter", self.fw_positions[0])
             fw2.set_command("position from filter", self.fw_positions[1])
             pump_shutter.set_command("open")
+        else:
+            pump_shutter.set_command("close")
         for step in range(len(self.delay_array)):
             # Move delay array to the correct position
             self.active_DLS.set_command("move absolute",
@@ -140,18 +142,16 @@ class Experiment:
                 raw_signals = ps.get_data()
                 # This is a flag to stop the experiment from the GUI
                 if self.stop_experiment or self.next_experiment:
+                    self.next_experiment = False
                     if save_dir is not None:
                         self.waveformDP.save_data()
                     return
                 # Plot the raw Picoscope signal
-                data_plots.plots[4].update_plot([ps_time, raw_signals])
+                data_plots.plots[2].update_plot([ps_time, raw_signals])
                 # Segments and checks if for channel overrange.
                 self.waveformDP.check_segment_data(raw_signals)
             self.waveformDP.update_data()
             self.waveformDP.clear_buffers()
-                        
-            data_plots.balance_value.setText(str(self.waveformDP.data["A"]
-                                                [step]))
                         
             #Update plots with relevant data
             data_plots.update_plots(self.waveformDP.data)
@@ -175,9 +175,9 @@ class filterWheelWidget(QGroupBox):
             self.OPTP_fw2.addItem(defaults["FWxC"]["fw2"]["filters"]
                                  [filter]["value"])
 
-        self.layout.addWidget(QLabel('Filter wheel 1'), 0, 1)
+        self.layout.addWidget(QLabel("Filter wheel 1"), 0, 1)
         self.layout.addWidget(self.OPTP_fw1, 1, 1)
-        self.layout.addWidget(QLabel('Filter wheel 2'), 0, 2)
+        self.layout.addWidget(QLabel("Filter wheel 2"), 0, 2)
         self.layout.addWidget(self.OPTP_fw2, 1, 2)
 
     def get_data(self):
@@ -224,13 +224,13 @@ class darkTHz(Experiment):
             self.DT_repeats.setText(str(defaults["experiments"]["Dark THz"]
                                     ["repeats"]))
             
-            DLS125_boxlayout.addWidget(QLabel('Initial position (mm)'), 0, 0)
+            DLS125_boxlayout.addWidget(QLabel("Initial position (mm)"), 0, 0)
             DLS125_boxlayout.addWidget(self.DT_DLS125_initial, 1, 0)
-            DLS125_boxlayout.addWidget(QLabel('Final position (mm)'), 0, 1)
+            DLS125_boxlayout.addWidget(QLabel("Final position (mm)"), 0, 1)
             DLS125_boxlayout.addWidget(self.DT_DLS125_final, 1, 1)
-            DLS125_boxlayout.addWidget(QLabel('Step count'), 0, 2)
+            DLS125_boxlayout.addWidget(QLabel("Step count"), 0, 2)
             DLS125_boxlayout.addWidget(self.DT_step_count, 1, 2)
-            DLS125_boxlayout.addWidget(QLabel('Repeats'), 0, 3)
+            DLS125_boxlayout.addWidget(QLabel("Repeats"), 0, 3)
             DLS125_boxlayout.addWidget(self.DT_repeats, 1, 3)
 
             return darkTHz_widget
@@ -306,16 +306,16 @@ class OPTP(Experiment):
                                         ["repeats"]))
             self.OPTP_DLS325_position = QLineEdit()
 
-            DLS125_boxlayout.addWidget(QLabel('Initial position (mm)'), 0, 0)
+            DLS125_boxlayout.addWidget(QLabel("Initial position (mm)"), 0, 0)
             DLS125_boxlayout.addWidget(self.OPTP_DLS125_initial, 1, 0)
-            DLS125_boxlayout.addWidget(QLabel('Final position (mm)'), 0, 1)
+            DLS125_boxlayout.addWidget(QLabel("Final position (mm)"), 0, 1)
             DLS125_boxlayout.addWidget(self.OPTP_DLS125_final, 1, 1)
-            DLS125_boxlayout.addWidget(QLabel('Step count'), 0, 2)
+            DLS125_boxlayout.addWidget(QLabel("Step count"), 0, 2)
             DLS125_boxlayout.addWidget(self.OPTP_step_count, 1, 2)
-            DLS125_boxlayout.addWidget(QLabel('Repeats'), 0, 3)
+            DLS125_boxlayout.addWidget(QLabel("Repeats"), 0, 3)
             DLS125_boxlayout.addWidget(self.OPTP_repeats, 1, 3)
 
-            DLS325_boxlayout.addWidget(QLabel('Set position (mm)'), 0, 0)
+            DLS325_boxlayout.addWidget(QLabel("Set position (mm)"), 0, 0)
             DLS325_boxlayout.addWidget(self.OPTP_DLS325_position, 1, 0)
 
             return OPTP_widget
@@ -410,15 +410,15 @@ class pumpDecay(Experiment):
                     self.PD_step_count.setText(str(defaults["experiments"]
                                                 ["Pump decay"]
                                                 ["step frequency"]["low"]))
-                    self.layout.addWidget(QLabel('Initial position\n(mm)'),
+                    self.layout.addWidget(QLabel("Initial position\n(mm)"),
                                           0, 0)
                     self.layout.addWidget(self.PD_DLS325_initial, 1, 0)
-                    self.layout.addWidget(QLabel('Final position\n(mm)'),
+                    self.layout.addWidget(QLabel("Final position\n(mm)"),
                                           0, 1)
                     self.layout.addWidget(self.PD_DLS325_final, 1, 1)
-                    self.layout.addWidget(QLabel('Step count'), 0, 2)
+                    self.layout.addWidget(QLabel("Step count"), 0, 2)
                     self.layout.addWidget(self.PD_step_count, 1, 2)
-                    self.layout.addWidget(QLabel('Sampling mode'), 0, 3)
+                    self.layout.addWidget(QLabel("Sampling mode"), 0, 3)
                     self.layout.addWidget(self.PD_sampling_mode, 1, 3)
 
                 def get_data(self):
@@ -435,7 +435,7 @@ class pumpDecay(Experiment):
                                                 DLS325_inputs)
             pumpDecay_widget_layout.addWidget(self.row_container, 1, 0, 1, 5)
 
-            DLS125_boxlayout.addWidget(QLabel('Set position (mm)'), 0, 0)
+            DLS125_boxlayout.addWidget(QLabel("Set position (mm)"), 0, 0)
             DLS125_boxlayout.addWidget(self.PD_DLS125_position, 1, 0)
 
             repeats_layout.addWidget(self.PD_repeats, 0, 0)

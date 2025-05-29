@@ -13,7 +13,7 @@ from src.control.experiments import (
 import os
 
 
-with open(r'config\systemDefaults.JSON') as f:
+with open(r"config\systemDefaults.JSON") as f:
     defaults = js.load(f)
 
 class InputWidget(QWidget):
@@ -61,17 +61,17 @@ class InputWidget(QWidget):
 
         self.run_exp_button = QPushButton("Run experiments")
         
-        self.layout.addWidget(QLabel('Folder:'), 0, 0)
+        self.layout.addWidget(QLabel("Folder:"), 0, 0)
         self.layout.addWidget(self.dir_path_text, 0, 1, 1, 10)
         self.layout.addWidget(select_dir_button, 0, 11)
 
-        self.layout.addWidget(QLabel('Experiment Name:'), 1, 0)
+        self.layout.addWidget(QLabel("Experiment Name:"), 1, 0)
         self.layout.addWidget(self.sample_text, 1, 1, 1, 9)
         self.layout.addWidget(self.save_CB, 1, 10)
         self.layout.addWidget(self.file_type, 1, 11)
 
         self.layout.addWidget(self.run_exp_button, 2, 0)
-        self.layout.addWidget(QLabel('Sampling Mode:'), 2, 6)
+        self.layout.addWidget(QLabel("Sampling Mode:"), 2, 6)
         self.layout.addWidget(self.experiments, 2, 7)
 
         self.is_ref = QCheckBox("Is reference sample?")
@@ -138,10 +138,10 @@ class InputWidget(QWidget):
                                              ))
                     settings = self.darkTHz_widget.settings
                     display_string += (f"DLS125: "
-                        f"{settings['active_DLS_initial']} mm to "
-                        f"{settings['active_DLS_final']} mm, "
-                        f"{settings['active_DLS_steps']} steps, "
-                        f"{settings['repeats']} repeats\n")
+                        f"{settings["active_DLS_initial"]} mm to "
+                        f"{settings["active_DLS_final"]} mm, "
+                        f"{settings["active_DLS_steps"]} steps, "
+                        f"{settings["repeats"]} repeats\n")
                     self.program_widget.addItem(display_string)
                 case "Pump decay":
                     self.program_list.append(self.PD_widget.
@@ -151,15 +151,15 @@ class InputWidget(QWidget):
                                              ))
                     settings = self.PD_widget.settings
                     display_string += (f"DLS125: "
-                            f"{settings['DLS125_position']} mm; fw1: "
-                            f"{settings['fw1']}, fw2: {settings['fw2']}\n"
-                            f"    DLS325: {settings['DLS325_repeats']} "
+                            f"{settings["DLS125_position"]} mm; fw1: "
+                            f"{settings["fw1"]}, fw2: {settings["fw2"]}\n"
+                            f"    DLS325: {settings["DLS325_repeats"]} "
                             f"repeats\n")
                     for i in range(len(settings["DLS325_initial"])):
                         display_string += (f"        - "
-                            f"{settings['DLS325_initial'][i]} mm to "
-                            f"{settings['DLS325_final'][i]} mm, "
-                            f"{settings['DLS325_steps'][i]} steps, "
+                            f"{settings["DLS325_initial"][i]} mm to "
+                            f"{settings["DLS325_final"][i]} mm, "
+                            f"{settings["DLS325_steps"][i]} steps, "
                             f"{settings["sampling_mode"][i]} sampling\n")
                     self.program_widget.addItem(display_string)
                 case "OPTP":
@@ -170,12 +170,12 @@ class InputWidget(QWidget):
                                              ))
                     settings = self.OPTP_widget.settings
                     display_string += ("DLS325: "
-                        f"{settings['DLS325_position']} mm; fw1: "
-                        f"{settings['fw1']}, fw2: {settings['fw2']}\n"
-                        f"    DLS125: {settings['DLS125_initial']} mm to "
-                        f"{settings['DLS125_final']} mm, "
-                        f"{settings['DLS125_steps']} steps, "
-                        f"{settings['DLS125_repeats']} repeats\n")
+                        f"{settings["DLS325_position"]} mm; fw1: "
+                        f"{settings["fw1"]}, fw2: {settings["fw2"]}\n"
+                        f"    DLS125: {settings["DLS125_initial"]} mm to "
+                        f"{settings["DLS125_final"]} mm, "
+                        f"{settings["DLS125_steps"]} steps, "
+                        f"{settings["DLS125_repeats"]} repeats\n")
                     self.program_widget.addItem(display_string)
 
     def remove_experiment(self):

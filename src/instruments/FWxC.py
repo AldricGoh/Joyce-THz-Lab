@@ -2,7 +2,7 @@ from ctypes import *
 import json as js
 from src.instruments.instrument import Instrument
 
-with open(r'config/systemDefaults.json') as f:
+with open(r"config/systemDefaults.json") as f:
     defaults = js.load(f)
 
 class FWxC(Instrument):
@@ -16,9 +16,9 @@ class FWxC(Instrument):
         Returns: 
             The FWxC device list, each deice item is [serialNumber, FWxCType]
         """
-        str = create_string_buffer(1024, '\0') 
+        str = create_string_buffer(1024, "\0") 
         result = FWxC.FWxCLib.List(str,1024)
-        devicesStr = str.raw.decode("utf-8").rstrip('\x00').split(',')
+        devicesStr = str.raw.decode("utf-8").rstrip("\x00").split(",")
         length = len(devicesStr)
         i = 0
         devices = []
@@ -26,7 +26,7 @@ class FWxC(Instrument):
         while(i < length):
             str = devicesStr[i]
             if (i % 2 == 0):
-                if str != '':
+                if str != "":
                     devInfo[0] = str
                 else:
                     i+=1
@@ -63,7 +63,7 @@ class FWxC(Instrument):
     """
         ret = -1
         if FWxC.isLoad:
-            ret = FWxC.FWxCLib.Open(serialNo.encode('utf-8'),
+            ret = FWxC.FWxCLib.Open(serialNo.encode("utf-8"),
                                     nBaud, timeout)
         if ret >= 0:
             if serialNo == defaults["FWxC"]["fw1"]["serial port"]:
@@ -86,7 +86,7 @@ class FWxC(Instrument):
         """
         ret = -1
         if FWxC.isLoad:
-            ret = FWxC.FWxCLib.IsOpen(serialNo.encode('utf-8'))
+            ret = FWxC.FWxCLib.IsOpen(serialNo.encode("utf-8"))
             if ret == 1:
                 return True
             else:
