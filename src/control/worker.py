@@ -30,7 +30,7 @@ class WorkerSignals(QObject):
 
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
-    result = pyqtSignal(object)
+    processed_data = pyqtSignal(dict)
     progress = pyqtSignal(float)
 
 class Worker(QRunnable):
@@ -57,12 +57,14 @@ class Worker(QRunnable):
 
     def run(self):
         try:
-            result = self.fn(*self.args, **self.kwargs)
+            def emit(*args):
+                self.signals.processed_data.emit(args[0])
+            #result = self.fn(*self.args, **self.kwargs)
+            # Run the function with the emit callback
+            self.fn(emit, *self.args, **self.kwargs)
         except Exception:
             traceback.print_exc()
             exctype, value = sys.exc_info()[:2]
             self.signals.error.emit((exctype, value, traceback.format_exc()))
-        else:
-            self.signals.result.emit(result)
         finally:
             self.signals.finished.emit()

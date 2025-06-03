@@ -5,7 +5,6 @@ try:
     from PyQt6.QtWidgets import (
         QApplication, QWidget, QVBoxLayout, QTabWidget, QMainWindow
     )
-    from PyQt6.QtGui import QFont
     from src.GUI.inputWidget import InputWidget
     from src.GUI.plotWidgets import PlotManager
     from PyQt6.QtCore import QTimer, QThreadPool
@@ -63,7 +62,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.tabs)
         wid.setLayout(layout)
 
-        self.timer = QTimer()
+        # self.timer = QTimer()
 
     def create_run_settings_tab(self):
         tab = QWidget()
@@ -118,8 +117,10 @@ class MainWindow(QMainWindow):
             # Set up the thread pool and start the experiment protocols
             self.threadpool = QThreadPool()
 
-            worker = Worker(self.run_program)  # Any other args, kwargs are passed to the run function
-            # worker.signals.result.connect(self.print_output)
+            # Any other args, kwargs are passed to the run function
+            worker = Worker(self.run_program)
+            worker.signals.processed_data.connect(self.data_plots.
+                                                  update_plots)
             # worker.signals.finished.connect(self.thread_complete)
             # worker.signals.progress.connect(self.progress_fn)
             # Execute
@@ -138,7 +139,7 @@ class MainWindow(QMainWindow):
         self.fw1.close()
         self.fw2.close()
 
-    def run_program(self):
+    def run_program(self, emit):
         """
         This function will be called via "start worker" when the "Run"
         button is clicked.
@@ -155,8 +156,6 @@ class MainWindow(QMainWindow):
         4. Handle stopping and resetting the data collection
         6. Save the data to a file if needed
         5. Close the devices and clean up
-
-        If new experiments introduced, this is where to add them.
         """
         if self.main_menu.program_list == []:
             print("No experiments queued.")
@@ -203,29 +202,39 @@ class MainWindow(QMainWindow):
             else:
                 self.data_plots.next_exp_button.setEnabled(False)
             if self.main_menu.save_CB.isChecked():
-                self.experiment.run(self.ps4000,
+                self.experiment.run(emit,
+                                    self.ps4000,
                                     self.pump_shutter,
                                     self.fw1,
                                     self.fw2,
-                                    self.data_plots,
+                                    #self.data_plots,
                                     experiment_count,
                                     self.main_menu.dir_path_text.text(),
                                     self.main_menu.sample_text.text(),
                                     self.main_menu.file_type.currentText())
                 experiment_count += 1
             else:
-                self.experiment.run(self.ps4000,
+                self.experiment.run(emit,
+                                    self.ps4000,
                                     self.pump_shutter,
                                     self.fw1,
-                                    self.fw2,
-                                    self.data_plots)
+                                    self.fw2)#,
+                                    #self.data_plots)
             if self.experiment.stop_experiment:
                 self.experiment.stop_experiment = False
                 break
 
         # Close connections to the instruments
         self.wind_down()
+        self.data_plots.exp_stop_button.setEnabled(False)
         return
+
+    def update_plots(self, data):
+        """
+        Update the plots with new data.
+        This function is called by the worker thread when new data is available.
+        """
+        self.data_plots.update_plots(data)
 
     def set_kill_program(self):
         """
@@ -246,6 +255,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, *args, **kwargs):
         super(QMainWindow, self).closeEvent(*args, **kwargs)
+        # TODO: Handle closing the main window, ensuring all data is
+        # saved and instruments are closed properly.
         if self.main_menu.save_CB.isChecked():
             self.experiment.waveformDP.save_data()
 

@@ -98,11 +98,12 @@ class Experiment:
                 raise ValueError("Invalid delay array type.")
     
     def run(self,
+            emit,
             ps: PS4000,
             pump_shutter: SC10,
             fw1: FWxC,
             fw2: FWxC,
-            data_plots: PlotManager,
+            # data_plots: PlotManager,
             experiment_count: int =  None,
             save_dir: str = None,
             sample: str = None,
@@ -112,10 +113,13 @@ class Experiment:
         This is written for a typical OPTP experiment. (As of May 2025)
         May need modifications for other experiments, do check.
         """
-        # Generate the delay arrays
+        # Generate the picoscope time array
         ps_time = np.linspace(0, (ps.max_samples - 1) * 0.0001,
                               ps.max_samples)
+        # Create the data processing class instance
         self.waveformDP = WaveformDP(self.name, self.delay_array)
+        # If save file enabled, create a data file for the current
+        # experiment. If data file exists, this will fail.
         if save_dir is not None:
             self.waveformDP.generate_datafile(save_dir,
                                             sample,
@@ -126,13 +130,16 @@ class Experiment:
         if self.inactive_DL_position is not None:
             self.inactive_DLS.set_command("move absolute",
                                             self.inactive_DL_position)
-        # Setting filtr wheel positions as needed
+        # Setting filtr wheel positions as needed and open up pump
+        # shutter if it is required.
         if len(self.fw_positions) != 0:
             fw1.set_command("position from filter", self.fw_positions[0])
             fw2.set_command("position from filter", self.fw_positions[1])
             pump_shutter.set_command("open")
         else:
+            # Otherwise, ensure pump shutter is closed.
             pump_shutter.set_command("close")
+        # Main loop for the entire experiment
         for step in range(len(self.delay_array)):
             # Move delay array to the correct position
             self.active_DLS.set_command("move absolute",
@@ -144,17 +151,17 @@ class Experiment:
                 if self.stop_experiment or self.next_experiment:
                     self.next_experiment = False
                     if save_dir is not None:
+                        # Save data if required
                         self.waveformDP.save_data()
                     return
-                # Plot the raw Picoscope signal
-                data_plots.plots[2].update_plot([ps_time, raw_signals])
-                # Segments and checks if for channel overrange.
+                # Emit a dictionary to the main thread to be ploted
+                emit({"time": ps_time, "signal": raw_signals})
                 self.waveformDP.check_segment_data(raw_signals)
             self.waveformDP.update_data()
             self.waveformDP.clear_buffers()
-                        
-            #Update plots with relevant data
-            data_plots.update_plots(self.waveformDP.data)
+
+            # Emit the data dictionary to main thread to be plotted
+            emit(self.waveformDP.data)
 
         if save_dir is not None:
             self.waveformDP.save_data()

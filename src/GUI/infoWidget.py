@@ -7,7 +7,6 @@ from PyQt6.QtWidgets import (
     QGroupBox, QLabel, QComboBox, QFileDialog, QLineEdit, QListWidget, 
 )
 from PyQt6.QtGui import QFont
-from src.GUI.usefulWidgets import TinyHisPlotWidget
 
 
 with open(r"config\systemDefaults.JSON") as f:
@@ -44,18 +43,12 @@ class InfoWidgets:
                 self.layout.addWidget(QLabel(f"{key}:"), row, col)
                 self.layout.addWidget(self.variables[key], row, col+1)
 
-            self.balance_histogram = TinyHisPlotWidget()
-            self.layout.addWidget(self.balance_histogram, 4, 0, 2, 2)
-            self.layout.setRowMinimumHeight(4, 50)
-
         def update_info(self, data: dict):
             """ Update the waveform information widget with new data """
             if data["Saturation"]:
                 self.variables["Saturation"].setText(
                     "WARNING! Channel overrange!")
             self.variables["Balance"].setText(f"{data["A"][-1]:.3f}")
-            # Update the balance histogram
-            self.balance_histogram.update_plot(data["A"])
             for key in ["E_off", "E_on", "DT"]:
                 self.variables[f"{key} max"].setText(
                     f"{data[f"{key} max"][0]:.3f} @ "

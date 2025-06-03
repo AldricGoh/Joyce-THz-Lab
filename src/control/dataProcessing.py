@@ -67,7 +67,7 @@ class WaveformDP:
         frequencies = np.linspace(0, double_bandwidth, len(delay_ps))       
         self.data = {"Delay (mm)": delay_mm, "Delay (ps)": delay_ps, "A": [],
                      "B": [], "C": [], "D": [], "E_off": [], "E_on": [],
-                     "DT": [], "E_off Sprectrum": [], "E_on Spectrum": [],
+                     "DT": [], "E_off Spectrum": [], "E_on Spectrum": [],
                     "DT Spectrum": [], "Frequency (THz)": frequencies,
                     "E_off max": [], "E_off min": [], "E_on max": [],
                     "E_on min": [], "DT max": [], "DT min": [],
@@ -147,13 +147,13 @@ class WaveformDP:
         # Method to calculate FFT can be changed
         # Calculating spectra using FFTW, similar to Matlab
         # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/builders/builders.html
-        self.data["E_off Sprectrum"] = pyfftw.builders.fft(
+        self.data["E_off Spectrum"] = pyfftw.builders.fft(
             np.array(self.data["E_off"]))()
         self.data["E_on Spectrum"] = pyfftw.builders.fft(
             np.array(self.data["E_on"]))()
         self.data["DT Spectrum"] = pyfftw.builders.fft(
             np.array(self.data["DT"]))()
-        self.data["E_off Sprectrum"] = np.abs(self.data["E_off Sprectrum"])
+        self.data["E_off Spectrum"] = np.abs(self.data["E_off Spectrum"])
         self.data["E_on Spectrum"] = np.abs(self.data["E_on Spectrum"])
         self.data["DT Spectrum"] = np.abs(self.data["DT Spectrum"])
 

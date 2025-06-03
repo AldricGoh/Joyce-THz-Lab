@@ -1,193 +1,197 @@
-import distinctipy
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QGridLayout, QPushButton,
-    QComboBox, QLineEdit, QSizePolicy, QLabel, QGroupBox, QCheckBox
+    QComboBox, QLabel, QGroupBox,
 )
-import numpy as np
-from PyQt6.QtGui import QFont
-from matplotlib.backends.backend_qt import NavigationToolbar2QT
-from matplotlib.backends.backend_qtagg import (FigureCanvasQTAgg
-                                               as FigureCanvas)
-from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
+import pyqtgraph as pg
 from src.GUI.usefulWidgets import ResizingStackedWidget ,QCheckList
 from src.GUI.infoWidget import InfoWidgets
+import numpy as np
 
-# Set dark mode for matplotlib. Comment out if not needed.
-plt.style.use('dark_background')
 # TODO: Colour code different segments of Picoscope signals
 # TODO: Add heatmap plot for spot size plot
-# TODO: Add checkbox to display different plots onto the same plot
-# TODO: Add large plot
 
-colors = distinctipy.get_colors(4, pastel_factor=0.7)
-
-def plain_format(x, pos):
-    return f"{x:g}"  # or f"{x:.2e}" for scientific notation
+colors = ["b", "r", "g"]
 
 class LivePlot(QWidget):
     def __init__(self,
                  flag: str = None,
-                 scaling: str = None,
-                 xlim: float = None,
-                 ylim: float = None,
-                 figsize: tuple = (5, 2),
-                 dpi: int = 100,
+                 is_main: bool = False,
                  toolbar: bool= False):
         super().__init__()
-        self.figure = Figure(figsize=figsize, dpi=dpi)
-        self.plot_type = type
-        self.ax = self.figure.add_subplot(111)
+        self.previous_flag = None
         self.flag = flag
-        self.is_main = False
-        if xlim != None:
-            self.ax.set_xlim(xlim)
-            self.autoscale_x = False
-        else:
-            self.autoscale_x = True
-        if ylim != None:
-            self.ax.set_ylim(ylim)
-            self.autoscale_y = False
-        else:
-            self.autoscale_y = True
+        self.is_main = is_main
         self.plot_type = "line"
-        self.scaling = scaling
-        self.colors = colors
+        self.data = None
+        self.legend = None
 
-        self.canvas = FigureCanvas(self.figure)
-        self.canvas.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                  QSizePolicy.Policy.Expanding)
+        # Initailise the plot widget
+        self.plotWidget = pg.PlotWidget()
+        self.plotWidget.setTitle(flag)
+        # This lines ensures entire plot widget is visible
+        self.plotWidget.getPlotItem().layout.setContentsMargins(
+            10, 10, 10, 10)
+            # Add a legend if it is the main widget
+        if self.is_main:
+            self.plotWidget.addLegend()
+
+        # This dictionary holds the information that can be plotted
+        # for the given flag
+        self.dataplots = {"THz Signals": {"E_off": None,
+                                          "E_on": None,
+                                          "DT": None,
+                                          "x_axis": "Delay (mm)"},
+                          "THz Spectra" :{"E_off Spectrum": None,
+                                          "E_on Spectrum": None,
+                                          "DT Spectrum": None,
+                                          "x_axis": "Frequency (THz)"},
+                          "Picoscope signal": {"signal": None,
+                                               "x_axis": "time"}}
 
         # If enabled, the toolbar will be added to the plot
         if toolbar:
-            self.toolbar = NavigationToolbar2QT(self.canvas, self)
-
             self.dropdown = QComboBox()
             self.dropdown.addItems(["Line", "Scatter", "Line + Points"])
             self.dropdown.currentTextChanged.connect(self.change_plot_type)
-
-            self.xminlim_entry = QLineEdit()
-            self.xminlim_entry.setPlaceholderText("x min")
-            self.xmaxlim_entry = QLineEdit()
-            self.xmaxlim_entry.setPlaceholderText("x max")
-            self.yminlim_entry = QLineEdit()
-            self.yminlim_entry.setPlaceholderText("y min")
-            self.ymaxlim_entry = QLineEdit()
-            self.ymaxlim_entry.setPlaceholderText("y max")
-            self.set_axes_button = QPushButton("Set Axes Limits")
-            self.set_axes_button.clicked.connect(self.set_axes_limits)
-
             controls_layout = QGridLayout()
             controls_layout.addWidget(self.dropdown, 0, 0)
-            controls_layout.addWidget(self.xminlim_entry, 0, 1)
-            controls_layout.addWidget(self.xmaxlim_entry, 0, 2)
-            controls_layout.addWidget(self.yminlim_entry, 1, 1)
-            controls_layout.addWidget(self.ymaxlim_entry, 1, 2)
-            controls_layout.addWidget(self.set_axes_button, 0, 3, 2, 1)
 
         layout = QVBoxLayout()
-        layout.addWidget(self.canvas)
+        layout.addWidget(self.plotWidget)
         if toolbar:
-            layout.addWidget(self.toolbar)
             layout.addLayout(controls_layout)
         self.setLayout(layout)
 
+    def _update_plot_axes(self):
+        """
+        Internal method to update the plot axes based on the flag
+        """
+        match self.flag:
+            case "THz Signals":
+                self.plotWidget.setLabel("left", "ADC Counts")
+                self.plotWidget.setLabel("bottom", "Delay (mm)")
+                self.plotWidget.showGrid(x=False, y=False)
+                self.plotWidget.setLogMode(False, False)
+                # Remove plots of THz spectra if any
+                for key in self.dataplots["THz Spectra"].keys():
+                    if (self.dataplots["THz Spectra"][key] is None or
+                        key == "x_axis"):
+                        # If the plot is None or x_axis, skip it
+                        continue
+                    else:
+                        self.plotWidget.removeItem(
+                            self.dataplots["THz Spectra"][key])
+                        self.dataplots["THz Spectra"][key] = None
+            case "THz Spectra":
+                self.plotWidget.setLabel("left", "Amplitude")
+                self.plotWidget.setLabel("bottom", "Frequency (THz)")
+                self.plotWidget.showGrid(x=True, y=True)
+                self.plotWidget.setLogMode(False, True)
+                # Remove plots of THz signal if any
+                for key in self.dataplots["THz Signals"].keys():
+                    if (self.dataplots["THz Signals"][key] is None or
+                        key == "x_axis"):
+                        # If the plot is None or x_axis, skip it
+                        continue
+                    else:
+                        self.plotWidget.removeItem(
+                            self.dataplots["THz Signals"][key])
+                        self.dataplots["THz Signals"][key] = None
+            case "Picoscope signal":
+                self.plotWidget.setLabel("left", "ADC Counts")
+                self.plotWidget.setLabel("bottom", "Time (ms)")
+        
+        for i, key in enumerate(self.dataplots[self.flag].keys()):
+            if self.dataplots[self.flag][key] is not None:
+                continue
+            self.dataplots[self.flag][key] = self.plotWidget.plot(
+                [], [], name=key, pen=pg.mkPen(color=colors[i%3],
+                                               width = 2))
+            if "Spectrum" in key:
+                self.dataplots[self.flag][key].setLogMode(xState=False,
+                                                     yState=True)
+
     def change_plot_type(self, text):
         self.plot_type = text.lower().replace(" + points", "+points")
+        self.plotWidget.clear()
+        for plot in self.dataplots[self.flag].keys():
+            if plot == "x_axis":
+                continue
+            if self.dataplots[self.flag][plot] is None:
+                print(f"Plot {plot} not found in {self.flag}")
+                continue
+            match self.plot_type:
+                case "line":
+                    self.dataplots[self.flag][plot] = self.plotWidget.plot(
+                        [], [], name=plot,
+                        pen=pg.mkPen(color=colors[[*self.dataplots
+                                                  [self.flag]].
+                                                  index(plot)%3],
+                                                  width=2))
+                case "scatter":
+                    self.dataplots[self.flag][plot] = self.plotWidget.plot(
+                        [], [], name=plot,
+                        pen=None,
+                        symbol='o',
+                        symbolSize=8,
+                        symbolBrush=colors[[*self.dataplots[self.flag]].
+                                                  index(plot)%3]
+                    )
+                case "line+points":
+                    self.dataplots[self.flag][plot] = self.plotWidget.plot(
+                        [], [], name=plot, symbol='o', symbolSize=8,
+                        symbolBrush=colors[[*self.dataplots[self.flag]].
+                                                  index(plot)%3],
+                        pen=pg.mkPen(color=colors[[*self.dataplots
+                                                  [self.flag]].
+                                                  index(plot)%3],
+                                                  width=2))
+
         self.update_plot()
-
-    def set_axes_limits(self):
-        try:
-            xlim = tuple(map(float, self.xlim_entry.text().split(',')))
-            ylim = tuple(map(float, self.ylim_entry.text().split(',')))
-            if len(xlim) == 2:
-                self.ax.set_xlim(xlim)
-            if len(ylim) == 2:
-                self.ax.set_ylim(ylim)
-            self.canvas.draw()
-        except ValueError:
-            print("Invalid axis limits input.")
-
-    def plot_data(self,
-                  x_data: list,
-                  y_data: list,
-                  label: str = None):
-        """ Function to plot data based on various variables. """
-        
-        if label is None:
-            color = self.colors[3]
-        elif "E_on" in label:
-            color = self.colors[0]
-        elif "E_off" in label:
-            color = self.colors[1]
-        elif "DT" in label:
-            color = self.colors[2]
-        else:
-            color = self.colors[3]
-
-        if self.scaling == "semilog":
-            self.ax.semilogy(x_data, y_data, lw=1, color=color)
-            self.ax.relim()
-        if self.plot_type == "line":
-            self.ax.plot(x_data, y_data, lw=1, color=color, label=label)
-            self.ax.relim()
-        elif self.plot_type == "scatter":
-            sc = self.ax.scatter(x_data, y_data, s=10, color=color,
-                                 label=label)
-            self.ax.update_datalim(sc.get_offsets())
-        elif self.plot_type == "line+points":
-            self.ax.plot(x_data, y_data, marker = 'o',
-                         lw=1, color=color, label=label)
-            self.ax.relim()
 
     def update_plot(self,
                     data=None,
-                    data_selection: list = None):
-        self.ax.clear()
-        if data is not None and type(data) is dict:
+                    data_selection: list = ["signal"]):
+        """
+        Update the plot with new data.
+        The main plotting logic is all here
+        """
+        # If data is provided, cache the data
+        if type(data) is dict:
             self.data = data
+        #Cache the data selection if provided
         if data_selection is not None:
             self.data_selection = data_selection
-        match self.flag:
-            case "THz Signals":
-                self.title = "THz Signals"
-                self.x_label = "Delay (mm)"
-                self.y_label = "ADC Counts"
-                self.scaling = None
-                for selection in self.data_selection:
-                    x_data = self.data["Delay (mm)"][:len(
-                            self.data[selection])]
-                    y_data = self.data[selection]
-                    self.plot_data(x_data, y_data, selection)
-            case "THz Spectra":
-                self.title = "THz Spectra"
-                self.x_label = "Frequency (THz)"
-                self.y_label = "Amplitude"
-                self.scaling = "semilog"
-                for selection in self.data_selection:
-                    x_data = self.data["Frequency (THz)"][:len(
-                        self.data[selection])]
-                    y_data = self.data[selection]
-                    self.plot_data(x_data, y_data, selection)
-            case "Picoscope signal":
-                self.title = "Picoscope signal"
-                self.x_label = "Time (ms)"
-                self.y_label = "ADC Counts"
-                self.plot_data(data[0], data[1])
+        # Check if flag has been changed or not. if yes, cache the
+        # latest flag and update the plot title and labels
+        if self.previous_flag != self.flag:
+            self.plotWidget.setTitle(self.flag)
+            self.previous_flag = self.flag
+            self._update_plot_axes()
 
-        self.ax.set_title(self.title)
-        self.ax.set_xlabel(self.x_label)
-        self.ax.set_ylabel(self.y_label)
-        self.ax.yaxis.set_major_formatter(FuncFormatter(plain_format))
-        if self.is_main:
-            self.ax.legend(loc=1)
-        self.ax.autoscale_view(scalex=self.autoscale_y,
-                               scaley=self.autoscale_y)
-        self.figure.tight_layout()
-        self.canvas.draw()
+        # Just simply plot the data, no need to change anything
+        for plot in self.dataplots[self.flag].keys():
+            if plot == "x_axis":
+                continue
+            if self.dataplots[self.flag][plot] is None:
+                print(f"Plot {plot} not found in {self.flag}")
+                continue  # Skip invalid plots
+            y_data = self.data[plot]
+            x_data = self.data[self.dataplots[self.flag]["x_axis"]][:len(
+                                    self.data[plot])]
+            if data_selection is not None and plot in self.data_selection:
+                self.dataplots[self.flag][plot].setVisible(True)
+            else:
+                self.dataplots[self.flag][plot].setVisible(False)
+
+            if np.iscomplexobj(y_data):
+                print(f"Plot {plot} contains complex data,"
+                      f" getting absolute value.")
+                y_data = np.abs(y_data)
+            self.dataplots[self.flag][plot].setData(x_data, y_data)
 
 class PlotManager(QWidget):
+    """ Class for the main tab to record and display results. """
     def __init__(self):
         super().__init__()
         self.layout = QGridLayout()
@@ -208,7 +212,7 @@ class PlotManager(QWidget):
         self.data_selection_stack = ResizingStackedWidget(self)
         self.THz_signal_data = QCheckList(['E_off', 'E_on', 'DT'],
                                     'Data to plot', 1)
-        self.THz_spectra_data = QCheckList(['E_off Sprectrum',
+        self.THz_spectra_data = QCheckList(['E_off Spectrum',
                                             'E_on Spectrum',
                                             'DT Spectrum'],
                                             'Data to plot', 1)
@@ -233,16 +237,17 @@ class PlotManager(QWidget):
         control_layout.addWidget(self.next_exp_button, 1, 1)
 
         return base
-    
+
     def data_plots(self):
         """ Create the data plots widget """
         # Setup all the plots, 3 in total
-        self.plots = [LivePlot(flag="THz Signals", toolbar=True),
-                      LivePlot("THz Spectra"), LivePlot("Picoscope signal")]
-        self.plots[0].is_main = True
+        self.plots = [LivePlot(flag="THz Signals",
+                               is_main=True,
+                               toolbar=True),
+                      LivePlot("THz Spectra"),
+                      LivePlot("Picoscope signal")]
 
         self.control_panel = self.control_panel()
-
         self.layout.addWidget(self.plots[0], 0, 0, 6, 4)
         self.layout.addWidget(self.control_panel, 0, 4, 4, 1)
         self.layout.setColumnMinimumWidth(0, 1300)
@@ -253,7 +258,7 @@ class PlotManager(QWidget):
     def update_plots(self,
                      data: dict = None):
         """ Update the plots with new data """
-        if type(data) is dict:
+        if type(data) is dict and "signal" not in data.keys():
             self.current_data = data
         # Update information variables
         if self.current_data is not None:
@@ -261,29 +266,39 @@ class PlotManager(QWidget):
         for plot in self.plots:
             match plot.flag:
                 case "Picoscope signal":
-                    return
+                    if type(data) is dict and "signal" in data.keys():
+                        plot.update_plot(data)
+                        return
                 case "THz Signals":
-                    plot.update_plot(self.current_data,
+                    if self.current_data is not None:
+                        plot.update_plot(self.current_data,
                                     self.THz_signal_data.checked_items)
                 case "THz Spectra":
-                    plot.update_plot(self.current_data,
+                    if self.current_data is not None:
+                        plot.update_plot(self.current_data,
                                      self.THz_spectra_data.checked_items)
-    
+
     def change_plot(self):
         """ Change the main plot to selected data """
         ctext = self.data_dropdown.currentText()
         current_main_flag = self.plots[0].flag
-        for plot in self.plots:
+
+        # Find the plot corresponding to the selected flag
+        for i, plot in enumerate(self.plots):
             if plot.flag == ctext:
+                self.plots[0].flag = ctext
                 plot.flag = current_main_flag
-        self.plots[0].flag = ctext
-        self.plots[0].is_main = True
+
+        # Update the dropdown and data selection stack
         match ctext:
             case "THz Signals":
                 self.data_selection_stack.setCurrentIndex(0)
             case "THz Spectra":
                 self.data_selection_stack.setCurrentIndex(1)
-        # self.update_plots()
+
+        # Update the plots
+        self.update_plots()
+        return
 
 # Class for tuning window
 class TuningWindow(QWidget):
