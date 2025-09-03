@@ -1,23 +1,24 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QGridLayout, QPushButton,
-    QComboBox, QLabel, QGroupBox,
+    QComboBox, QLabel, QGroupBox, QHBoxLayout
 )
 import pyqtgraph as pg
 from src.GUI.usefulWidgets import ResizingStackedWidget ,QCheckList
 from src.GUI.infoWidget import InfoWidgets
+from src.control.tuning import TuneBalance
 import numpy as np
 
 # TODO: Colour code different segments of Picoscope signals
 # TODO: Add heatmap plot for spot size plot
 
-colors = ["b", "r", "g"]
+colors = ["w", "r", "b"]
 
 class LivePlot(QWidget):
     def __init__(self,
                  flag: str = None,
-                 is_main: bool = False,
-                 toolbar: bool= False):
+                 is_main: bool = False):
         super().__init__()
+        # These flags are used to determine the data plotted
         self.previous_flag = None
         self.flag = flag
         self.is_main = is_main
@@ -31,12 +32,9 @@ class LivePlot(QWidget):
         # This lines ensures entire plot widget is visible
         self.plotWidget.getPlotItem().layout.setContentsMargins(
             10, 10, 10, 10)
-            # Add a legend if it is the main widget
-        if self.is_main:
-            self.plotWidget.addLegend()
-
         # This dictionary holds the information that can be plotted
         # for the given flag
+        # TODO: Make this more flexible, so it is more general.
         self.dataplots = {"THz Signals": {"E_off": None,
                                           "E_on": None,
                                           "DT": None,
@@ -47,18 +45,18 @@ class LivePlot(QWidget):
                                           "x_axis": "Frequency (THz)"},
                           "Picoscope signal": {"signal": None,
                                                "x_axis": "time"}}
+            
 
-        # If enabled, the toolbar will be added to the plot
-        if toolbar:
+        layout = QVBoxLayout()
+        layout.addWidget(self.plotWidget)
+        # Add a legend & plot type changer if it is the main widget
+        if self.is_main:
+            self.plotWidget.addLegend()
             self.dropdown = QComboBox()
             self.dropdown.addItems(["Line", "Scatter", "Line + Points"])
             self.dropdown.currentTextChanged.connect(self.change_plot_type)
             controls_layout = QGridLayout()
             controls_layout.addWidget(self.dropdown, 0, 0)
-
-        layout = QVBoxLayout()
-        layout.addWidget(self.plotWidget)
-        if toolbar:
             layout.addLayout(controls_layout)
         self.setLayout(layout)
 
@@ -185,8 +183,6 @@ class LivePlot(QWidget):
                 self.dataplots[self.flag][plot].setVisible(False)
 
             if np.iscomplexobj(y_data):
-                print(f"Plot {plot} contains complex data,"
-                      f" getting absolute value.")
                 y_data = np.abs(y_data)
             self.dataplots[self.flag][plot].setData(x_data, y_data)
 
@@ -206,9 +202,10 @@ class PlotManager(QWidget):
         overall_layout = QGridLayout()
         base.setLayout(overall_layout)
         self.control_widget = QGroupBox("Control Panel")
-        control_layout = QGridLayout()
+        control_layout = QHBoxLayout()
         self.control_widget.setLayout(control_layout)
         self.info_widget = InfoWidgets.WaveformInfo("Waveform Information")
+        self.balance_tuning_widget = TuneBalance.input_widget()
         self.data_selection_stack = ResizingStackedWidget(self)
         self.THz_signal_data = QCheckList(['E_off', 'E_on', 'DT'],
                                     'Data to plot', 1)
@@ -219,10 +216,11 @@ class PlotManager(QWidget):
         self.data_selection_stack.addWidget(self.THz_signal_data)
         self.data_selection_stack.addWidget(self.THz_spectra_data)
         self.data_selection_stack.adjustSize()
-        overall_layout.addWidget(self.control_widget, 0, 0, 2, 4)
-        overall_layout.addWidget(self.info_widget, 3, 0, 4, 4)
-        overall_layout.addWidget(self.data_selection_stack, 8, 0, 4, 4)
-        overall_layout.setRowStretch(0|1|2|3|4|5, 1)
+        overall_layout.addWidget(self.control_widget, 0, 0, 2, 8)
+        overall_layout.addWidget(self.info_widget, 3, 0, 4, 8)
+        overall_layout.addWidget(self.data_selection_stack, 8, 0, 4, 2)
+        overall_layout.addWidget(self.balance_tuning_widget.GUI, 8, 2, 4, 6)
+        overall_layout.setRowStretch(0|1|2|3|4|5|6|7|8, 1)
 
         self.data_dropdown = QComboBox()
         self.data_dropdown.addItems(self.plot_order)
@@ -232,9 +230,9 @@ class PlotManager(QWidget):
         self.exp_stop_button.setEnabled(False)
         self.next_exp_button = QPushButton("Next experiment")
         self.next_exp_button.setEnabled(False)
-        control_layout.addWidget(self.data_dropdown, 0, 0)
-        control_layout.addWidget(self.exp_stop_button, 1, 0)
-        control_layout.addWidget(self.next_exp_button, 1, 1)
+        control_layout.addWidget(self.data_dropdown)
+        control_layout.addWidget(self.exp_stop_button)
+        control_layout.addWidget(self.next_exp_button)
 
         return base
 
@@ -242,8 +240,7 @@ class PlotManager(QWidget):
         """ Create the data plots widget """
         # Setup all the plots, 3 in total
         self.plots = [LivePlot(flag="THz Signals",
-                               is_main=True,
-                               toolbar=True),
+                               is_main=True),
                       LivePlot("THz Spectra"),
                       LivePlot("Picoscope signal")]
 
@@ -299,18 +296,3 @@ class PlotManager(QWidget):
         # Update the plots
         self.update_plots()
         return
-
-# Class for tuning window
-class TuningWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Tuning Window")
-        self.resize(400, 200)
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-
-        self.tuning_label = QLabel("Tuning Window")
-        self.layout.addWidget(self.tuning_label)
-
-        # Add tuning controls here
-        # Example: self.tuning_slider = QSlider(Qt.Horizontal)

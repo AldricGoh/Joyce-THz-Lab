@@ -1,170 +1,14 @@
 import json as js
-import numpy as np
 from PyQt6.QtWidgets import (
     QGridLayout, QLabel, QLineEdit, QGroupBox, QComboBox, QWidget
 )
+from src.control.task import Task
 from src.instruments.DLS import DLS
-from src.GUI.plotWidgets import PlotManager
-from src.instruments.Picoscope4000 import PS4000
-from src.instruments.SC10 import SC10
-from src.instruments.FWxC import FWxC
-from src.control.dataProcessing import WaveformDP
 from src.GUI.usefulWidgets import RowContainer
 from time import *
 
-# TODO: Try to simplify the code
-
 with open(r"config/systemDefaults.json") as f:
     defaults = js.load(f)
-
-class Experiment:
-    """
-    Base class for all experiments.
-    Follow this template when introducing new experiments.
-    All experiments should inherit from this class.
-    Methods include:
-    - __init__: Initialize the experiment with sample attributes.
-    - input_widget (class): Create the input widget for the experiment.
-        - GUI: Create the input menu for the experiment.
-        - check_inputs: Check the inputs for the experiment.
-        - set_experiment_parameters: Set the parameters for the experiment.
-    - main_delay_array: Generate a delay array for the experiment.
-    - run: Run the experiment.
-    """
-    def __init__(self, active_DLS:DLS,
-                 inactive_DLS: DLS,
-                 sample_attributes: dict):
-        """
-        Initialize the experiment with sample attributes.
-        Also sets up the parameters for the instruments for the experiment.
-        """
-        self.sample_attributes = sample_attributes
-        #TODO: Consider making DLS into a list.
-        # May be useful if we have more than 2 DLS
-        self.name = None
-        self.active_DLS = active_DLS
-        self.inactive_DLS =inactive_DLS
-        self.inactive_DL_position = None
-        self.fw_positions = []
-        self.delay_array = np.array([])
-        self.repeats = 25
-        self.stop_experiment = False
-        self.next_experiment = False
-
-    class input_widget:
-        def __init__(self):
-            """
-            Create the input widget for the experiment.
-            """
-            raise NotImplementedError("input_widget method not implemented.")
-
-        def check_inputs(self):
-            """
-            Check the inputs for the experiment.
-            TODO: Include checks here
-            """
-            raise NotImplementedError("check_inputs method not implemented.")
-        
-        def set_experiment_parameters(self):
-            """
-            Set the parameters for the experiment.
-            """
-            raise NotImplementedError("set_experiment_parameters method not" \
-            "implemented.")
-
-    def main_delay_array(self,
-                         initial_pos: list,
-                         final_pos: list,
-                         steps: list,
-                         type: list = ["Linear"]):
-        """
-        Generate a delay array for the experiment.
-        Allows for a combination of linear and logarithmic delay arrays.
-        """
-        for i in range(len(initial_pos)):
-            if steps[i] <= 0:
-                raise ValueError("Steps must be greater than 0.")
-            if type[i] == "Linear":
-                self.delay_array = np.append(self.delay_array,
-                                             np.linspace(initial_pos[i],
-                                                         final_pos[i],
-                                                         steps[i]))                          
-            elif type[i] == "Logarithmic":
-                self.delay_array = np.append(self.delay_array,
-                                             np.geomspace(initial_pos[i],
-                                                         final_pos[i],
-                                                         steps[i]))
-            else:
-                raise ValueError("Invalid delay array type.")
-    
-    def run(self,
-            emit,
-            ps: PS4000,
-            pump_shutter: SC10,
-            fw1: FWxC,
-            fw2: FWxC,
-            # data_plots: PlotManager,
-            experiment_count: int =  None,
-            save_dir: str = None,
-            sample: str = None,
-            save_type: str = ""):
-        """
-        This is the main function for running the experiment.
-        This is written for a typical OPTP experiment. (As of May 2025)
-        May need modifications for other experiments, do check.
-        """
-        # Generate the picoscope time array
-        ps_time = np.linspace(0, (ps.max_samples - 1) * 0.0001,
-                              ps.max_samples)
-        # Create the data processing class instance
-        self.waveformDP = WaveformDP(self.name, self.delay_array)
-        # If save file enabled, create a data file for the current
-        # experiment. If data file exists, this will fail.
-        if save_dir is not None:
-            self.waveformDP.generate_datafile(save_dir,
-                                            sample,
-                                            experiment_count,
-                                            self.name,
-                                            save_type)
-        # Move inactive DLS to the correct position
-        if self.inactive_DL_position is not None:
-            self.inactive_DLS.set_command("move absolute",
-                                            self.inactive_DL_position)
-        # Setting filtr wheel positions as needed and open up pump
-        # shutter if it is required.
-        if len(self.fw_positions) != 0:
-            fw1.set_command("position from filter", self.fw_positions[0])
-            fw2.set_command("position from filter", self.fw_positions[1])
-            pump_shutter.set_command("open")
-        else:
-            # Otherwise, ensure pump shutter is closed.
-            pump_shutter.set_command("close")
-        # Main loop for the entire experiment
-        for step in range(len(self.delay_array)):
-            # Move delay array to the correct position
-            self.active_DLS.set_command("move absolute",
-                                        self.delay_array[step])
-            # Collect data from the Picoscope for the number of repeats
-            for repeat in range(self.repeats):
-                raw_signals = ps.get_data()
-                # This is a flag to stop the experiment from the GUI
-                if self.stop_experiment or self.next_experiment:
-                    self.next_experiment = False
-                    if save_dir is not None:
-                        # Save data if required
-                        self.waveformDP.save_data()
-                    return
-                # Emit a dictionary to the main thread to be ploted
-                emit({"time": ps_time, "signal": raw_signals})
-                self.waveformDP.check_segment_data(raw_signals)
-            self.waveformDP.update_data()
-            self.waveformDP.clear_buffers()
-
-            # Emit the data dictionary to main thread to be plotted
-            emit(self.waveformDP.data)
-
-        if save_dir is not None:
-            self.waveformDP.save_data()
 
 class filterWheelWidget(QGroupBox):
     """ Class to create a widget to get filter wheels inputs. """
@@ -193,7 +37,7 @@ class filterWheelWidget(QGroupBox):
         """
         return [self.OPTP_fw1.currentText(), self.OPTP_fw2.currentText()]
 
-class darkTHz(Experiment):
+class darkTHz(Task):
     """
     Class for the dark THz experiment.
     """
@@ -242,11 +86,11 @@ class darkTHz(Experiment):
 
             return darkTHz_widget
 
-        def set_experiment_parameters(self, active_DLS: DLS):
+        def set_task_parameters(self, active_DLS: DLS):
             """
             Set the parameters for the dark THz experiment.
             This gives us the setting dictionary to display the info
-            in the GUI, and also create an instance of the experiment class
+            in the GUI, and also create an instance of the Task class
             to be appended to a program list that we can run.
             """
             # self.check_inputs()
@@ -269,7 +113,7 @@ class darkTHz(Experiment):
 
             return darkTHz_instance
 
-class OPTP(Experiment):
+class OPTP(Task):
     """
     Class for the OPTP experiment.
     """
@@ -327,13 +171,13 @@ class OPTP(Experiment):
 
             return OPTP_widget
 
-        def set_experiment_parameters(self,
+        def set_task_parameters(self,
                                       active_DLS: DLS,
                                       inactive_DLS: DLS):
             """
             Set the parameters for the OPTP experiment.
             This gives us the setting dictionary to display the info
-            in the GUI, and also create an instance of the experiment class
+            in the GUI, and also create an instance of the Task class
             to be appended to a program list that we can run.
             """
             # self.check_inputs()
@@ -363,7 +207,7 @@ class OPTP(Experiment):
 
             return OPTP_instance
 
-class pumpDecay(Experiment):
+class pumpDecay(Task):
     """
     Class for the pump decay experiment.
     """
@@ -449,13 +293,13 @@ class pumpDecay(Experiment):
 
             return pumpDecay_widget
     
-        def set_experiment_parameters(self,
+        def set_task_parameters(self,
                                       active_DLS: DLS,
                                       inactive_DLS: DLS):
             """
             Set the parameters for the OPTP experiment.
             This gives us the setting dictionary to display the info
-            in the GUI, and also create an instance of the experiment class
+            in the GUI, and also create an instance of the Task class
             to be appended to a program list that we can run.
             """
             # self.check_inputs()

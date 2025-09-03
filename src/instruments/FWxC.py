@@ -106,7 +106,7 @@ class FWxC(Instrument):
                 self.status = f"WARNING: Close FWxC at {self.name} fail!"
         return ret
 
-    def set_command(self, command: str, value: str) :
+    def set_command(self, command: str, value: str):
         """ Execute command on the FWxC device
         Args:
             command: the command to execute

@@ -27,6 +27,8 @@ class InfoWidgets:
                                }} """)
             self.layout = QGridLayout()
             self.setLayout(self.layout)
+            # Remove saturation and balance to be included in
+            # QWP tuning box
             self.variables = {"Saturation": QLabel("All good"),
                               "Balance": QLabel("0.0"),
                               "E_off max": QLabel("0.0"),

@@ -1,3 +1,4 @@
+import re
 import numpy as np
 import json as js
 import pandas as pd
@@ -7,7 +8,8 @@ import pyfftw  # FFTW used in Matlab.
 # TODO: Spectrum analysis, enabling bandwidth measurements. Remember to do it for noise floor too.
 # TODO: Add method to save data to file
 # TODO: Convert knifeedge matlab code to python
-# TODO: The only data necessary: Delay (mm), A, B, C, D
+# TODO: The only data necessary: Delay (mm), A, B, C, D, std of signals, std of delay
+# TODO: Windowing function: ignore noise
 
 with open(r"config/systemDefaults.json") as f:
     defaults = js.load(f)
@@ -21,11 +23,11 @@ class WaveformDP:
     following way:
     1. The data is segmented into 4 segments, A, B, C, D. These
        segments correspond to the 4 different signals that we measure.
-            -> A: Gate pulse,
-               B: E_on + pump + gate pulse,
-               C: Pump + gate pulse,
-               D: E_off + gate pulse
-        To get an accurate DT, (B - C) - (D - A) to account for
+            -> A: E_on + pump + gate pulse,
+               B: Pump + gate pulse,
+               C: E_off + gate pulse,
+               D: Gate pulse
+        To get an accurate DT, (A - B) - (C - D) to account for
         potential generation of THz via pump in the sample.
     2. The mean of each segments are appended to the buffers for the
        duration of the repeat.
@@ -48,23 +50,27 @@ class WaveformDP:
     C_buffer = []
     D_buffer = []
 
-    # These are reset/changed after each experiment
-    saturation = False
-
     def __init__(self,
                  experiment_name: str,
                  delay_mm: np.ndarray):
         self.pulse_duration = defaults["main laser"]["pulse duration"]
-        self.sampling_signals = (defaults["experiments"][experiment_name]
+        self.sampling_signals = (defaults["sampling scheme"]
                             ["pulses"])
-        sampling_counts = (defaults["experiments"][experiment_name]
+        sampling_counts = (defaults["sampling scheme"]
                             ["sampling counts"])
         self.pulses_per_sample = self.sampling_signals * sampling_counts
-        
+        self.signal_window = (defaults["sampling scheme"]
+                              ["signal windowing"]["start"],
+                              defaults["sampling scheme"]["signal windowing"]["start"] +
+                              defaults["sampling scheme"]["signal windowing"]["width"])
+
         # Make a frequency array
         delay_ps = 2* delay_mm * 1e9 / defaults["C"]
-        double_bandwidth = (len(delay_mm)/(delay_ps[-1] - delay_ps[0]))
-        frequencies = np.linspace(0, double_bandwidth, len(delay_ps))       
+        if len(delay_mm) != 1:
+            double_bandwidth = (len(delay_mm)/(delay_ps[-1] - delay_ps[0]))
+            frequencies = np.linspace(0, double_bandwidth, len(delay_ps))
+        else:
+            frequencies = np.array([0.0])  # No frequency for single point      
         self.data = {"Delay (mm)": delay_mm, "Delay (ps)": delay_ps, "A": [],
                      "B": [], "C": [], "D": [], "E_off": [], "E_on": [],
                      "DT": [], "E_off Spectrum": [], "E_on Spectrum": [],
@@ -75,23 +81,36 @@ class WaveformDP:
                     "Emitter noise": [], "Pump-induced noise": [],
                     "Total noise": [], "OPTP noise": []}
         
-    def check_segment_data(self, ps_raw_output: np.ndarray):
+    def check_and_segment_data(self, ps_raw_output: np.ndarray):
         """ Check for saturation and segment the PicoScope data """
-        if (ps_raw_output.max() >= 32760 or
-            ps_raw_output.min() <= -32751):
-            self.saturation = True
+        # Check for saturation (9.7 V)
+        if (ps_raw_output.max() >= 31800 or
+            ps_raw_output.min() <= -31801):
+            self.data["Saturation"] = True
         
         # Segment the data into individual pulses.
-        # For 80000 sample points, we have 40 pulses. 
-        segmented_list = np.array_split(ps_raw_output,
-                                        self.pulses_per_sample)
-      
-        # Get pulse ABCD, and aggregate them into buffers.
-        for i in range(0, len(segmented_list), self.sampling_signals):
-            self.A_buffer.append(np.mean(segmented_list[i]))
-            self.B_buffer.append(np.mean(segmented_list[i+1]))
-            self.C_buffer.append(np.mean(segmented_list[i+2]))
-            self.D_buffer.append(np.mean(segmented_list[i+3]))
+        # For 80000 sample points, we have 40 pulses (10 pulse cycles). 
+        segments = ps_raw_output.reshape(self.pulses_per_sample, -1)
+        # Zero out the parts of the segments that are not in the signal window
+        # This is to avoid noise from other parts of the signal.
+        segments[:, :self.signal_window[0]] = 0
+        segments[:, self.signal_window[1]+1:] = 0
+        
+        # Get the average of pulse ABCD, and aggregate them into buffers.
+        # Only average the signal window (1850 to 2000).
+        for i in range(0, self.pulses_per_sample, self.sampling_signals):
+            self.A_buffer.append(np.mean(segments[i][self.signal_window[0]:
+                                                           self.signal_window[1]]))
+            self.B_buffer.append(np.mean(segments[i+1][self.signal_window[0]:
+                                                             self.signal_window[1]]))
+            self.C_buffer.append(np.mean(segments[i+2][self.signal_window[0]:
+                                                             self.signal_window[1]]))
+            self.D_buffer.append(np.mean(segments[i+3][self.signal_window[0]:
+                                                             self.signal_window[1]]))
+
+        # return the segments reshaped to 2D array
+        # This is useful for plotting the data.
+        return segments.reshape(-1)
 
     def update_data(self):
         """
@@ -103,23 +122,23 @@ class WaveformDP:
         the noise floor.
 
         The noise calculated are as follows:
-        - Baseline background noise: std(A)
-        - Emitter only noise: std(D - A)
-        - Optical pump-induced noise: std(C - A)
-        - Total noise from pump + THz + interactions: std(B - A)
+        - Baseline background noise: std(D)
+        - Emitter only noise: std(C - D)
+        - Optical pump-induced noise: std(B - D)
+        - Total noise from pump + THz + interactions: std(A - D)
         - OPTP (THz change induced by the optical pump) noise:
-            std(B - C - D + A)
+            std(A - B - C + D)
         """
         A = np.array(self.A_buffer)
         B = np.array(self.B_buffer)
         C = np.array(self.C_buffer)
         D = np.array(self.D_buffer)
         ABCD = [np.mean(A), np.mean(B), np.mean(C), np.mean(D)]
-        noise = [np.std(A), # Baseline background noise
-                 np.std(D - A), # Emitter noise
-                 np.std(C - A), # Pump-induced noise
-                 np.std(B - A), # Total noise
-                 np.std(B - C - D + A)] # OPTP noise
+        noise = [np.std(D), # Baseline background noise
+                 np.std(C - D), # Emitter noise
+                 np.std(B - D), # Pump-induced noise
+                 np.std(A - D), # Total noise
+                 np.std(A - B - C + D)] # OPTP noise
 
         for i, key in enumerate(["A", "B", "C", "D"]):
             self.data[key].append(ABCD[i])
@@ -130,9 +149,11 @@ class WaveformDP:
             self.data[key].append(noise[i])
 
         # Calculate E_off, E_on and DT
-        self.data["E_off"].append(ABCD[3] - ABCD[0])
-        self.data["E_on"].append(ABCD[1] - ABCD[0])
-        self.data["DT"].append(ABCD[3] - ABCD[1])
+        self.data["E_off"].append(ABCD[2] - ABCD[3])
+        
+        self.data["E_on"].append(ABCD[0] - ABCD[1])
+        # E_on - E_off = (A - B) - (C - D)
+        self.data["DT"].append(ABCD[0] - ABCD[1] - ABCD[2] + ABCD[3])
 
         for key in ["E_off", "E_on", "DT"]:
             self.data[f"{key} max"] = [max(self.data[key]),
@@ -144,18 +165,24 @@ class WaveformDP:
                                        [self.data[key].index(
                                        min(self.data[key]))]]
 
-        # Method to calculate FFT can be changed
-        # Calculating spectra using FFTW, similar to Matlab
-        # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/builders/builders.html
-        self.data["E_off Spectrum"] = pyfftw.builders.fft(
-            np.array(self.data["E_off"]))()
-        self.data["E_on Spectrum"] = pyfftw.builders.fft(
-            np.array(self.data["E_on"]))()
-        self.data["DT Spectrum"] = pyfftw.builders.fft(
-            np.array(self.data["DT"]))()
-        self.data["E_off Spectrum"] = np.abs(self.data["E_off Spectrum"])
-        self.data["E_on Spectrum"] = np.abs(self.data["E_on Spectrum"])
-        self.data["DT Spectrum"] = np.abs(self.data["DT Spectrum"])
+        if len(self.data["Frequency (THz)"]) != 1:
+            # Method to calculate FFT can be changed
+            # Calculating spectra using FFTW, similar to Matlab
+            # https://pyfftw.readthedocs.io/en/latest/source/pyfftw/builders/builders.html
+            self.data["E_off Spectrum"] = pyfftw.builders.fft(
+                np.array(self.data["E_off"]))()
+            self.data["E_on Spectrum"] = pyfftw.builders.fft(
+                np.array(self.data["E_on"]))()
+            self.data["DT Spectrum"] = pyfftw.builders.fft(
+                np.array(self.data["DT"]))()
+            self.data["E_off Spectrum"] = np.abs(self.data["E_off Spectrum"])
+            self.data["E_on Spectrum"] = np.abs(self.data["E_on Spectrum"])
+            self.data["DT Spectrum"] = np.abs(self.data["DT Spectrum"])
+        else:
+            # If only one point, no FFT can be calculated
+            self.data["E_off Spectrum"] = np.array([0.0])
+            self.data["E_on Spectrum"] = np.array([0.0])
+            self.data["DT Spectrum"] = np.array([0.0])
 
     def clear_buffers(self):
         """
@@ -222,29 +249,7 @@ class WaveformDP:
         #                                               key="df",
         #                                               mode="w")
         # elif type == "json":
-
-
         self.clear_buffers()
-        self.saturation = False
-    
-
-class KnifeEdgeDP:
-    """ Data Processing class for Knife Edge signals """
-    
-    def __init__(self, pulse_duration, sampling_signals, sampling_counts):
-        self.pulse_duration = pulse_duration
-        self.sampling_signals = sampling_signals
-        self.sampling_counts = sampling_counts
-        
-    def calculate_mean_signals(self):
-        """ Calculate the mean signals """
-        A_buffer_mean = np.mean(self.A_buffer)
-        B_buffer_mean = np.mean(self.B_buffer)
-        C_buffer_mean = np.mean(self.C_buffer)
-        D_buffers_mean = np.mean(self.D_buffer)
-
-        return [A_buffer_mean, B_buffer_mean, C_buffer_mean,
-                D_buffers_mean]
 
 # TODO: Consider implementing the .thz file format:
 # https://github.com/dotTHzTAG/Documentation/blob/main/thz_file_format.md

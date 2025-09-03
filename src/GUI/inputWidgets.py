@@ -2,13 +2,17 @@ import sys
 import json as js
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QGridLayout, QPushButton, QCheckBox,
-    QLabel, QComboBox, QFileDialog, QLineEdit, QListWidget
+    QLabel, QComboBox, QFileDialog, QLineEdit, QListWidget,
+    QHBoxLayout, QVBoxLayout, QGroupBox
 )
 from src.GUI.usefulWidgets import ResizingStackedWidget
 from src.instruments.DLS import DLS
 # Import experiment classes here
 from src.control.experiments import (
     darkTHz, OPTP, pumpDecay
+)
+from src.control.tuning import (
+    TuneAmplitude
 )
 import os
 
@@ -17,7 +21,9 @@ with open(r"config\systemDefaults.JSON") as f:
     defaults = js.load(f)
 
 class InputWidget(QWidget):
-    """ Widget to handle user inputs for the main GUI """
+    """
+    Widget to handle user inputs for experiments in the main GUI
+    """
     
     def __init__(self, thz_dls: DLS , pump_dls: DLS):
         super().__init__()
@@ -71,23 +77,29 @@ class InputWidget(QWidget):
         self.layout.addWidget(self.file_type, 1, 11)
 
         self.layout.addWidget(self.run_exp_button, 2, 0)
-        self.layout.addWidget(QLabel("Sampling Mode:"), 2, 6)
-        self.layout.addWidget(self.experiments, 2, 7)
-
+        self.layout.addWidget(self.program_widget, 3, 0, 10, 6)
+        self.layout.addWidget(self.add_experiment_button, 2, 6)
+        self.layout.addWidget(self.remove_experiment_button, 2, 7)
+        
+        self.layout.addWidget(QLabel("Sampling Mode:"), 4, 6)
+        self.layout.addWidget(self.experiments, 4, 7)
         self.is_ref = QCheckBox("Is reference sample?")
         self.is_ref.setChecked(False)
-        self.layout.addWidget(self.is_ref, 2, 8)
+        self.layout.addWidget(self.is_ref, 4, 8)
+        self.zeroing = QCheckBox("Zero max amplitude?")
+        self.zeroing.setChecked(False)
+        self.layout.addWidget(self.zeroing, 4, 9)
 
-        self.layout.addWidget(self.program_widget, 3, 0, 5, 5)
-        self.layout.addWidget(self.add_experiment_button, 3, 5)
-        self.layout.addWidget(self.remove_experiment_button, 4, 5)
-        
+        self.tuning_input_widget = TuningInputWidget(self.thz_dls,
+                                                     self.pump_dls)
+        self.layout.addWidget(self.tuning_input_widget, 10, 6, 1, 5)
+
         # TODO: Add new experiment input widget here. Follow the templates.
         self.experiment_stack = ResizingStackedWidget(self)
         self.darkTHz_widget = darkTHz.input_widget()
         self.OPTP_widget = OPTP.input_widget()
         self.PD_widget = pumpDecay.input_widget()
-        self.layout.addWidget(self.experiment_stack, 3, 6, 3, 5)
+        self.layout.addWidget(self.experiment_stack, 5, 6, 1, 5)
         self.experiment_stack.addWidget(self.darkTHz_widget.GUI)
         self.experiment_stack.addWidget(self.PD_widget.GUI)
         self.experiment_stack.addWidget(self.OPTP_widget.GUI)
@@ -133,7 +145,7 @@ class InputWidget(QWidget):
             match experiment:
                 case "Dark THz":
                     self.program_list.append(self.darkTHz_widget.
-                                             set_experiment_parameters(
+                                             set_task_parameters(
                                                 self.thz_dls
                                              ))
                     settings = self.darkTHz_widget.settings
@@ -145,7 +157,7 @@ class InputWidget(QWidget):
                     self.program_widget.addItem(display_string)
                 case "Pump decay":
                     self.program_list.append(self.PD_widget.
-                                             set_experiment_parameters(
+                                             set_task_parameters(
                                                 self.pump_dls,
                                                 self.thz_dls
                                              ))
@@ -164,7 +176,7 @@ class InputWidget(QWidget):
                     self.program_widget.addItem(display_string)
                 case "OPTP":
                     self.program_list.append(self.OPTP_widget.
-                                             set_experiment_parameters(
+                                             set_task_parameters(
                                                  self.thz_dls,
                                                  self.pump_dls
                                              ))
@@ -195,6 +207,66 @@ class InputWidget(QWidget):
             return True
         else:
             return False
+
+class TuningInputWidget(QWidget):
+    """ Widget to handle user inputs for tuning """
+    
+    def __init__(self, thz_dls: DLS , pump_dls: DLS):
+        super().__init__()
+        self.program_list = []
+        self.thz_dls = thz_dls
+        self.pump_dls = pump_dls
+        self.layout = QGridLayout()
+        self.setLayout(self.layout)
+        self.tuning_menu()
+
+    def tuning_menu(self):
+        """ Create the tuning input menu for the GUI """
+
+        self.tune_selection = QComboBox()
+        self.tune_selection.addItems(defaults["tuning"].keys())
+        self.tune_selection.activated.connect(self._select_tune_parameter)
+
+        self.tune_amplitude = TuneAmplitude(self.thz_dls)
+
+        self.run_tune_button = QPushButton("Tune!")
+        self.run_tune_button.clicked.connect(self._set_tune_parameters)
+
+        self.layout.addWidget(self.run_tune_button, 0, 0)
+        
+        self.layout.addWidget(QLabel("Tuning Mode:"), 1, 0)
+        self.layout.addWidget(self.tune_selection, 1, 1)
+        
+        # TODO: Add new tuning input widget here. Follow the templates.
+        self.tuning_stack = ResizingStackedWidget(self)
+        self.tuneAmplitude_widget = TuneAmplitude.input_widget()
+        self.OPTP_widget = OPTP.input_widget()
+        self.PD_widget = pumpDecay.input_widget()
+        self.layout.addWidget(self.tuning_stack, 2, 0, 1, 5)
+        self.tuning_stack.addWidget(self.tuneAmplitude_widget.GUI)
+        self.tuning_stack.addWidget(self.PD_widget.GUI)
+        self.tuning_stack.addWidget(self.OPTP_widget.GUI)
+        self.tuning_stack.adjustSize()
+
+    def _select_tune_parameter(self):
+        """
+        Show the input menu for the selected experiment
+        TODO: Add new experiment input widget here for switching.
+        """
+        ctext = self.tune_selection.currentText()
+        match ctext:
+            case "Amplitude":
+                self.tuning_stack.setCurrentIndex(0)
+            case "Bandwidth":
+                self.tuning_stack.setCurrentIndex(1)
+            case "Knife Edge":
+                self.tuning_stack.setCurrentIndex(2)
+
+    def _set_tune_parameters(self):
+        match self.tune_selection.currentText():
+            case "Amplitude":
+                self.tune_amplitude.position = float(
+                    self.tuneAmplitude_widget.tune_amplitude_position.text())
 
 def main():
    app = QApplication(sys.argv)

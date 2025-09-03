@@ -2,7 +2,7 @@
     "experiments":{
         "Dark THz": {
             "pulses": 4,
-            "sampling counts": 10,
+            "sampling counts": 2000,
             "repeats": 8,
             "step frequency": 100
         },
@@ -22,6 +22,37 @@
             "repeats": 30,
             "step frequency": 400
         }
+    },
+    "sampling scheme":{
+        "pulses": 4,
+        "sampling counts": 2000,
+        "signal windowing": {
+            "start": 1850,
+            "width": 150
+        }
+    },
+    "tuning": {
+        "Amplitude":{
+            "repeats": 10
+        },
+        "Bandwidth":{
+            "repeats": 1
+        },
+        "Knife Edge":{
+            "repeats": 15
+        },
+        "Balance":{
+            "repeats": 40,
+            "target precision": 0.01
+        }
+    },
+    "knife edge":{
+        "limits": {
+            "x": [-5, 5],
+            "y": [-5, 5]
+        },
+        "step size": 0.01,
+        "repeats": 30
     },
     "main laser": {
         "Model": "Ascend",
@@ -43,7 +74,7 @@
         "timebase": 1e-7,
         "trigger":{
             "trigger threshold": 5000,
-            "pretrigger samples": 1000,
+            "pretrigger samples": 0,
             "trigger delay": 0,
             "autotrigger": 8
         }
@@ -124,6 +155,17 @@
             "message_after_every_run": "Hey! The run is done! You might want to check it before going onto the next run.",
             "message_after_exp_done": "Woohoo! The experiment is done! Here are the results:"
         }
+    },
+    "MCM3000":{
+        "serial port": "COM4",
+        "baud rate": 115200
+    },
+    "XPS": {
+        "address": "192.168.254.254",
+        "port": 5001,
+        "QWP": "QWP",
+        "tuning step": 0.01,
+        "fine tuning step": 0.001
     },
     "C": 299792458
   }

@@ -1,80 +1,89 @@
-try:
-    import sys
-    sys.path.append('./src/instruments')
-    from DLS_COMMAND_LIB import *
-    from Picoscope4000 import ps4000 as ps
-    import time
-    from ctypes import *
-    import numpy as np
-    import matplotlib.pyplot as plt
-except OSError as ex:
-    print("Warning:", ex)
+import json as js
+import numpy as np
+from src.control.task import Task
+from PyQt6.QtWidgets import (
+    QGridLayout, QLabel, QLineEdit, QGroupBox, QComboBox, QWidget,
+    QHBoxLayout, QPushButton
+)
+from src.instruments.DLS import DLS
+from src.instruments.Picoscope4000 import PS4000
+from src.instruments.MCM3000 import MCM3000
+from src.control.dataProcessing import WaveformDP
+from src.GUI.usefulWidgets import RowContainer
+from time import *
 
-# COM port definitions
-DLS125 = "COM11"
-DLS325 = "COM5"
+with open(r"config/systemDefaults.json") as f:
+    defaults = js.load(f)
 
-# Set up parameters
-repeats = 15 # Number of times to repeat the measurement. Each repeat is 10 measurements
-delay = [35, 37]
-steps = 100 # Number of steps in the delay
-delay_array = np.linspace(delay[0], delay[1], steps) # Create an array of delay values
+class KnifeEdge(Task):
+    """
+    Class for knife edge spot size measurement.
+    """
+    def __init__(self, active_DLS):
+        """
+        """
+        super().__init__(active_DLS, None, None)
+        self.name = "Knife Edge Measurement"
+        self.repeats = defaults["knife edge"]["repeats"]
+        self.limits = defaults["knife edge"]["limits"]
+        self.step_size = defaults["knife edge"]["step size"]
+        self.position = None
 
-plt.ion() # Turn on interactive mode for live updates
+    class input_widget:
+        def __init__(self):
+            """
+            Create the input widget for the amplitude tuning task.
+            """
+            self.GUI = self.GUI()
+        
+        def GUI(self):
+            """
+            Create the input menu for the amplitude tuning task.
+            """
+            tuneAmplitude_widget = QGroupBox("Amplitude")
+            TA_widget_layout = QHBoxLayout()
+            tuneAmplitude_widget.setLayout(TA_widget_layout)
 
-# Create time data
-ps_time = np.linspace(0, (80000 - 1) * 0.0001, 80000)
-ps_buffer = (c_int16 * 80000)()
+            self.tune_amplitude_label = QLabel("Tune at (mm):")
+            self.tune_amplitude_position = QLineEdit()
+            self.tune_amplitude_position.setFixedWidth(150)  # Set a fixed width of 100 pixels
+            TA_widget_layout.addWidget(self.tune_amplitude_label)
+            TA_widget_layout.addWidget(self.tune_amplitude_position)
 
-dark_THz_signal = []
-# delay = []
-# fig, ax = plt.subplots()
-# ps_graph = ax.plot(delay,dark_THz_signal,color = 'g')[0]
+            return tuneAmplitude_widget
+    
+    def run(self,
+            emit,
+            ps: PS4000,
+            mcm3000: MCM3000):
+        """
+        This is the main function for running the knife edge
+        task.
+        """
+        # Generate the picoscope time array
+        ps_time = np.linspace(0, (ps.max_samples - 1) * 0.0001,
+                              ps.max_samples)
+        # Create the data processing class instance
+        self.waveformDP = WaveformDP(self.name, np.array([self.position]))
+        # Main loop for the entire experiment
+        # Move delay array to the correct position
+        self.active_DLS.set_command("move absolute", self.position)
+        # Collect data from the Picoscope for the number of repeats
+        while not self.stop_task:
+            for repeat in range(self.repeats):
+                raw_signals = ps.get_data()
+                # This is a flag to stop tuning from the GUI
+                if self.stop_task:
+                    self.stop_task = False
+                    return
+                # Emit a dictionary to the main thread to be ploted
+                emit({"time": ps_time, "signal": raw_signals})
+                self.waveformDP.check_segment_data(raw_signals)
+            self.waveformDP.update_data()
+            self.waveformDP.clear_buffers()
 
-def main():
-
-    fig, ax = plt.subplots()
-    ps_graph = ax.plot(ps_time,ps_buffer,color = 'g')[0]
-    plt.xlabel('Time (ms)')
-    plt.ylabel('ADC Counts')
-    plt.xlim(35, 37)
-
-    # Create instances of the DLS interface
-    thz_dls = DLS()
-    pump_dls = DLS()
-
-    # Open connections to the instruments
-    thz_dls.open(DLS125)
-    pump_dls.open(DLS325)
-
-    thz_dls.set_mode(0) # Set the mode to 0 for THz DLS
-
-    ps4000 = ps()
-    ps4000.setup()
-
-    for step in range(delay_array.size):
-        thz_dls.PA_set(delay_array[step])
-        checking_buffer = 0
-        while checking_buffer != 47:
-            checking_buffer = int(thz_dls.TS())
-        raw_signals = ps4000.collect_data(repeats)
-
-        # removing the older graph
-        ps_graph.remove()
-        #ps_graph = ax.plot(delay,dark_THz_signal,color = 'g')[0]
-        ps_graph = ax.plot(delay_array[:step+1],dark_THz_signal,color = 'g')[0]
-        plt.pause(0.01) # Pause for a short time to allow the graph to update
-
-    time.sleep(0.1)
-
-    ps4000.close()
-
-    print(dark_THz_signal)
-
-    # Close connections to the instruments
-    thz_dls.close()
-    pump_dls.close()
-
-
-if __name__ == "__main__":
-    main()
+            # Emit the data dictionary to main thread to be plotted
+            emit(self.waveformDP.data)
+            self.waveformDP.data["Delay (mm)"] = np.append(
+                self.waveformDP.data["Delay (mm)"], self.position+value)
+            value += 0.000001
