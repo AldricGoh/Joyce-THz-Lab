@@ -18,14 +18,14 @@
         },
         "OPTP": {
             "pulses": 4,
-            "sampling counts": 10,
+            "sampling counts": 20,
             "repeats": 30,
             "step frequency": 400
         }
     },
     "sampling scheme":{
         "pulses": 4,
-        "sampling counts": 2000,
+        "sampling counts": 20,
         "signal windowing": {
             "start": 1850,
             "width": 150
@@ -42,6 +42,7 @@
             "repeats": 15
         },
         "Balance":{
+            "Start angle": 137.94,
             "repeats": 40,
             "target precision": 0.01
         }
@@ -72,6 +73,17 @@
         "model": "4262",
         "bit size": 16,
         "timebase": 1e-7,
+        "trigger":{
+            "trigger threshold": 5000,
+            "pretrigger samples": 0,
+            "trigger delay": 0,
+            "autotrigger": 8
+        }
+    },
+    "NIDAQ": {
+        "model": "PCIe-6376",
+        "bit size": 16,
+        "timebase": 4e-7,
         "trigger":{
             "trigger threshold": 5000,
             "pretrigger samples": 0,

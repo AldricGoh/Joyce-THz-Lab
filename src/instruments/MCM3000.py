@@ -120,7 +120,7 @@ class MCM3000(Instrument):
 					time.sleep(0.01)
 				return
 
-	def get_command(self, command: str, value: str):
+	def get_command(self, command: str):
 		""" Get command from the FWxC device
 		Args:
 			command: the command to eget

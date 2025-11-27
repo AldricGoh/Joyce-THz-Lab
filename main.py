@@ -22,6 +22,7 @@ try:
     from ctypes import *
     import qdarktheme
     import datetime
+    from time import *
 except OSError as ex:
     print("Warning:", ex)
 
@@ -132,7 +133,7 @@ class MainWindow(QMainWindow):
         It will run in a separate thread.
         """
         while self.XPS.is_open:
-            self.XPS.get_command(emit, "status data", defaults["XPS"]["QWP"])
+            self.XPS.get_command("status data", defaults["XPS"]["QWP"], emit=emit)
 
     def start_exp_worker(self):
         """
@@ -157,9 +158,7 @@ class MainWindow(QMainWindow):
 
             # Any other args, kwargs are passed to the run function
             worker = Worker(self.run_program)
-            worker.signals.processed_data.connect(self.data_panel.
-                                                  update_plots)
-            processing_worker = Worker(self.)
+            worker.signals.processed_data.connect(self.update_plots)
             # worker.signals.finished.connect(self.thread_complete)
             # worker.signals.progress.connect(self.progress_fn)
             # Execute
@@ -277,6 +276,7 @@ class MainWindow(QMainWindow):
             if self.main_menu.save_CB.isChecked():
                 self.experiment.run(emit,
                                     self.ps4000,
+                                    self.XPS,
                                     self.pump_shutter,
                                     self.fw1,
                                     self.fw2,
@@ -288,6 +288,7 @@ class MainWindow(QMainWindow):
             else:
                 self.experiment.run(emit,
                                     self.ps4000,
+                                    self.XPS,
                                     self.pump_shutter,
                                     self.fw1,
                                     self.fw2)
@@ -300,11 +301,18 @@ class MainWindow(QMainWindow):
         self.data_panel.exp_stop_button.setEnabled(False)
         return
 
-    def process_data(self, ps_raw_output: np.ndarray):
+    def process_data(self, data: dict):
         """
         Process the raw data from the PicoScope.
         """
-        pass
+        # start = time()
+        ps_raw_output = np.array(data["signal"])
+        self.experiment.waveformDP.check_and_segment_data(ps_raw_output)
+        
+        # Emit the data dictionary to main thread to be plotted
+        self.data_panel.update_plots(self.experiment.waveformDP.data)
+        # end = time()
+        # print(f"Data processing time: {end - start} seconds")
 
     def tune_setup_amplitude(self, emit):
         # TODO: Complete tuning amplitude program

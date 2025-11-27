@@ -47,10 +47,12 @@ class InfoWidgets:
 
         def update_info(self, data: dict):
             """ Update the waveform information widget with new data """
-            if data["Saturation"]:
+            if True in data["Saturation"]:
                 self.variables["Saturation"].setText(
                     "WARNING! Channel overrange!")
-            self.variables["Balance"].setText(f"{data["A"][-1]:.3f}")
+            else:
+                self.variables["Saturation"].setText("All good")
+            self.variables["Balance"].setText(f"{data["D"][-1]:.3f}")
             for key in ["E_off", "E_on", "DT"]:
                 self.variables[f"{key} max"].setText(
                     f"{data[f"{key} max"][0]:.3f} @ "

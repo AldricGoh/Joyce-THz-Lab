@@ -110,13 +110,13 @@ def getStatus(Stage,chan_num):
 
 Com_Port = 'COM4'
 Scale_Factor = 4735.597 # Encoder Counts/mm for PLS-X
-Channel = 0 # Channel 1 indexes at 0
+Channel = 1 # Channel 1 indexes at 0
 
 #Intialize PlS-X Stage 
 PLS_X = Initialize(Com_Port)
 
 #Set Encoder Count to 0
-Set_Encoder_Count(PLS_X,Channel,0)
+# Set_Encoder_Count(PLS_X,Channel,-10000) # Set current position to -10mm
 time.sleep(0.1)
 
 #Get Position Before Move
@@ -124,7 +124,7 @@ Position = getPositionDU(PLS_X,Channel)/Scale_Factor
 print('Position: %.4f mm' % (Position))
 
 #Move Stage to 5 mm
-pos = -5 #mm
+pos = 12 #mm
 
 Absolute_Move(PLS_X,Channel,Scale_Factor,pos)
 

@@ -6,6 +6,7 @@ try:
     from src.instruments.instrument import Instrument
     from ctypes import *
     import numpy as np
+    from time import *
 except OSError as ex:
     print("Warning:", ex)
 
@@ -67,6 +68,17 @@ class PS4000(Instrument):
                                         self.trigger["autotrigger"])
         assert_pico_ok(self.status["setTrigger"])
 
+        # Set up overflow buffer for data collection
+        min_buffer = (c_int16 * self.max_samples)()
+        self.status["setDataBuffersA"] = ps.ps4000SetDataBuffers(
+                                            self.chandle,
+                                            ps.PS4000_CHANNEL
+                                            ["PS4000_CHANNEL_A"],
+                                            byref(self.output),
+                                            byref(min_buffer),
+                                            self.max_samples)
+        assert_pico_ok(self.status["setDataBuffersA"])
+
     def close(self) -> None:
         """ Close picoscope 4262 device
         Args:
@@ -88,35 +100,30 @@ class PS4000(Instrument):
         Collect data from picoscope 4262 device. Current implementation
         is the block mode.
         """
-        # Set up overflow buffer for data collection
-        min_buffer = (c_int16 * self.max_samples)()
         # Run block mode capture
+        # start = time()
         self.status["runBlock"] = ps.ps4000RunBlock(self.chandle,
                                 self.trigger["pretrigger samples"],
                                 (self.max_samples -
                                 self.trigger["pretrigger samples"]),
                                 0, 0, None, 0, None, None)
         assert_pico_ok(self.status["runBlock"])
-
+        # end = time()
+        # print(f"Time taken for ps4000RunBlock: {end - start} seconds")
+        
+        # start = time()
         ready = c_int16(0)
         check = c_int16(0)
         while ready.value == check.value:
             self.status["isReady"] = ps.ps4000IsReady(self.chandle,
                                                         byref(ready))
+        # end = time()
+        # print(f"Time taken for ps4000IsReady: {end - start} seconds")
 
-        self.status["setDataBuffersA"] = ps.ps4000SetDataBuffers(
-                                            self.chandle,
-                                            ps.PS4000_CHANNEL
-                                            ["PS4000_CHANNEL_A"],
-                                            byref(self.output),
-                                            byref(min_buffer),
-                                            self.max_samples)
-        assert_pico_ok(self.status["setDataBuffersA"])
-
+        # start = time()
         # create overflow loaction
         overflow = c_int16()
         cmaxsamples = c_int32(self.max_samples)
-
         # Get data from the device
         self.status["getValues"] = ps.ps4000GetValues(self.chandle,
                                     0,
@@ -126,12 +133,13 @@ class PS4000(Instrument):
                                     0,
                                     byref(overflow))
         assert_pico_ok(self.status["getValues"])
-
-        # Convert the ADC counts data to mV if enabled
-        if bits2Volts:
-            maxADC = c_int16(32767)
-            self.output =  adc2mV(self.output,
-                                    ps.PS4000_RANGE["PS4000_10V"],
-                                    maxADC)
+        # end = time()
+        # print(f"Time taken for ps4000GetValues: {end - start} seconds")
+        # # Convert the ADC counts data to mV if enabled
+        # if bits2Volts:
+        #     maxADC = c_int16(32767)
+        #     self.output =  adc2mV(self.output,
+        #                             ps.PS4000_RANGE["PS4000_10V"],
+        #                             maxADC)
 
         return np.array(self.output, dtype=np.int16)

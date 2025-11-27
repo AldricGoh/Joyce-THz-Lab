@@ -97,7 +97,7 @@ class TuneBalance(Task):
                               ps.max_samples)
         # Create the data processing class instance
         self.waveformDP = WaveformDP(self.name, np.array([self.position]))
-        # self.waveformDP.generate_datafile("D:/Aldric/250818",
+        # self.waveformDP.generate_datafile("D:/Aldric/Data/250918",
         #                                     "balance drift",
         #                                     1,
         #                                     self.name,
@@ -175,27 +175,26 @@ class TuneAmplitude(Task):
         ps_time = np.linspace(0, (ps.max_samples - 1) * 0.0001,
                               ps.max_samples)
         # Create the data processing class instance
-        self.waveformDP = WaveformDP(self.name, np.array([self.position]))
-        self.waveformDP.generate_datafile("D:/Aldric/250902",
-                                            "balance drift",
-                                            1,
-                                            self.name,
-                                            "txt")
+        start = time()
+        self.waveformDP = WaveformDP(self.name, np.array([time()-start]))
+        # self.waveformDP.generate_datafile("D:/Aldric/Data/250924",
+        #                                     "balance drift_no crystal",
+        #                                     1,
+        #                                     self.name,
+        #                                     "txt")
         # Main loop for the entire experiment
         # Move delay array to the correct position
         self.active_DLS.set_command("move absolute", self.position)
         # Collect data from the Picoscope for the number of repeats
-        value = 0.000001
-        start = time()
         while not self.stop_task:
             for repeat in range(self.repeats):
                 raw_signals = ps.get_data()
                 # This is a flag to stop tuning from the GUI
-                if self.stop_task or value == 0.01:
+                if self.stop_task or time()-start > 50000:
                     self.stop_task = False
-                    end = time()
-                    print(f"Time taken: {end - start} seconds")
-                    self.waveformDP.save_data()
+                    # end = time()
+                    # print(f"Time taken: {end - start} seconds")
+                    # self.waveformDP.save_data()
                     del self.waveformDP
                     return
                 processed_PS_signals = self.waveformDP.check_and_segment_data(
@@ -208,8 +207,7 @@ class TuneAmplitude(Task):
             # Emit the data dictionary to main thread to be plotted
             emit(self.waveformDP.data)
             self.waveformDP.data["Delay (mm)"] = np.append(
-                self.waveformDP.data["Delay (mm)"], self.position+value)
-            value += 0.000001
+                self.waveformDP.data["Delay (mm)"], time()-start)
 
 class TuneBandwidth(Task):
     """

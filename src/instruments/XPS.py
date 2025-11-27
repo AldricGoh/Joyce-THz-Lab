@@ -90,7 +90,7 @@ class XPS(Instrument):
                 print("Stage is moving")
         return status
 
-    def get_command(self, emit, command: str, group: str , **kwargs):
+    def get_command(self, command: str, group: str , emit=None,  **kwargs):
         """
         Get the command for the XPS device.
         Args:
@@ -108,9 +108,14 @@ class XPS(Instrument):
                 status_string = ""
                 position = self.XPS.GroupPositionCurrentGet(group, position, 1)
                 status_string = self.XPS.GroupStatusStringGet(data[1], status_string)
-                emit({"status": data[1],
-                      "position": position[1][0],
-                      "status string": status_string[1]})
+                if emit:
+                    emit({"status": data[1],
+                        "position": position[1][0],
+                        "status string": status_string[1]})
+                else:
+                    return {"status": data[1],
+                            "position": position[1][0],
+                            "status string": status_string[1]}
             case _:
                 print(f"Unknown command: {command}")
                 return "Unknown command"
@@ -166,8 +171,7 @@ class XPS(Instrument):
                     print("Position is required for absolute move.")
                     return
                 if status not in [10, 11, 12, 13]:
-                    print(f"{group} is not ready to move.")
-                    print(status)
+                    #print(f"{group} is not ready to move.")
                     return status
                 errstring = self.XPS.GroupMoveAbsolute(group, [position], 1)[1]
                 if errstring != "":

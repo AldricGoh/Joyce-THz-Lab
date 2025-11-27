@@ -1,10 +1,17 @@
+import json as js
 from src.instruments.DLS import DLS
 from src.instruments.Picoscope4000 import PS4000
 from src.instruments.SC10 import SC10
 from src.instruments.FWxC import FWxC
+from src.instruments.XPS import XPS
 from src.control.dataProcessing import WaveformDP
+from src.control.email import send_notification
 import numpy as np
 from time import *
+from QWP_tuning import gradient_descent
+
+with open(r'config\systemDefaults.JSON') as f:
+    defaults = js.load(f)
 
 class Task:
     """
@@ -38,6 +45,8 @@ class Task:
         self.fw_positions = []
         self.delay_array = np.array([])
         self.repeats = 25
+        self.per_point_calibration = False
+        self.optimum_balance =  82.5
         self.stop_task = False
         self.next_task = False
 
@@ -112,6 +121,7 @@ class Task:
     def run(self,
             emit,
             ps: PS4000,
+            XPS:XPS,
             pump_shutter: SC10,
             fw1: FWxC,
             fw2: FWxC,
@@ -150,7 +160,6 @@ class Task:
         else:
             # Otherwise, ensure pump shutter is closed.
             pump_shutter.set_command("close")
-        start = time()
         # Main loop for the entire task
         for step in range(len(self.delay_array)):
             # Move delay array to the correct position
@@ -158,6 +167,7 @@ class Task:
                                         self.delay_array[step])
             # Collect data from the Picoscope for the number of repeats
             for repeat in range(self.repeats):
+                # start = time()
                 raw_signals = ps.get_data()
                 # This is a flag to stop the task from the GUI
                 if self.stop_task or self.next_task:
@@ -170,14 +180,32 @@ class Task:
                 # Emit a dictionary to the main thread to be ploted
                 emit({"time": ps_time, "signal": raw_signals})
                 self.waveformDP.check_and_segment_data(raw_signals)
+                # end = time()
+                # print(f"Time taken for data collection: {end - start} seconds")
             self.waveformDP.update_data()
             self.waveformDP.clear_buffers()
+            
+            if self.per_point_calibration:
+                # Perform per-point calibration if required
+                balance = self.waveformDP.data["D"][-1]
+                while abs(balance-self.optimum_balance) > 5:
+                    self.waveformDP.clear_last_line()
+                    gradient_descent(ps4000=ps, XPS=XPS, target_balance=self.optimum_balance)
+                    for repeat in range(self.repeats):
+                        raw_signals = ps.get_data()
+                        emit({"time": ps_time, "signal": raw_signals})
+                        self.waveformDP.check_and_segment_data(raw_signals)
+                    self.waveformDP.update_data()
+                    self.waveformDP.clear_buffers()
+                    balance = self.waveformDP.data["D"][-1]
 
-            # Emit the data dictionary to main thread to be plotted
+            self.waveformDP.data["QWP angle"] = np.append(
+                self.waveformDP.data["QWP angle"],
+                XPS.get_command("status data", defaults["XPS"]["QWP"])["position"])
+
             emit(self.waveformDP.data)
-
-        end = time()
-        print(f"Time taken: {end - start} seconds")
 
         if save_dir is not None:
             self.waveformDP.save_data()
+
+        send_notification("azkg2@cam.ac.uk")

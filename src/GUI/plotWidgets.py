@@ -11,7 +11,7 @@ import numpy as np
 # TODO: Colour code different segments of Picoscope signals
 # TODO: Add heatmap plot for spot size plot
 
-colors = ["w", "r", "b"]
+colors = ["w", "r", "b", "g", "y"]
 
 class LivePlot(QWidget):
     def __init__(self,
@@ -38,6 +38,8 @@ class LivePlot(QWidget):
         self.dataplots = {"THz Signals": {"E_off": None,
                                           "E_on": None,
                                           "DT": None,
+                                          "D": None,
+                                          #"Saturated data": None,
                                           "x_axis": "Delay (mm)"},
                           "THz Spectra" :{"E_off Spectrum": None,
                                           "E_on Spectrum": None,
@@ -103,7 +105,7 @@ class LivePlot(QWidget):
             if self.dataplots[self.flag][key] is not None:
                 continue
             self.dataplots[self.flag][key] = self.plotWidget.plot(
-                [], [], name=key, pen=pg.mkPen(color=colors[i%3],
+                [], [], name=key, pen=pg.mkPen(color=colors[i%4],
                                                width = 2))
             if "Spectrum" in key:
                 self.dataplots[self.flag][key].setLogMode(xState=False,
@@ -207,7 +209,7 @@ class PlotManager(QWidget):
         self.info_widget = InfoWidgets.WaveformInfo("Waveform Information")
         self.balance_tuning_widget = TuneBalance.input_widget()
         self.data_selection_stack = ResizingStackedWidget(self)
-        self.THz_signal_data = QCheckList(['E_off', 'E_on', 'DT'],
+        self.THz_signal_data = QCheckList(['E_off', 'E_on', 'DT', 'D'],
                                     'Data to plot', 1)
         self.THz_spectra_data = QCheckList(['E_off Spectrum',
                                             'E_on Spectrum',
@@ -257,8 +259,6 @@ class PlotManager(QWidget):
         """ Update the plots with new data """
         if type(data) is dict and "signal" not in data.keys():
             self.current_data = data
-        # Update information variables
-        if self.current_data is not None:
             self.info_widget.update_info(self.current_data)
         for plot in self.plots:
             match plot.flag:

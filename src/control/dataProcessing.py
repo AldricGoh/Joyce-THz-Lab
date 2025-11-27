@@ -77,16 +77,19 @@ class WaveformDP:
                     "DT Spectrum": [], "Frequency (THz)": frequencies,
                     "E_off max": [], "E_off min": [], "E_on max": [],
                     "E_on min": [], "DT max": [], "DT min": [],
-                    "Saturation": False, "Background noise": [],
+                    "Saturation": [], "Background noise": [],
                     "Emitter noise": [], "Pump-induced noise": [],
-                    "Total noise": [], "OPTP noise": []}
+                    "Total noise": [], "OPTP noise": [], "QWP angle": []}
         
-    def check_and_segment_data(self, ps_raw_output: np.ndarray):
+    def check_and_segment_data(self,
+                                ps_raw_output: np.ndarray,
+                                saturation_value: int = 31000):
         """ Check for saturation and segment the PicoScope data """
         # Check for saturation (9.7 V)
-        if (ps_raw_output.max() >= 31800 or
-            ps_raw_output.min() <= -31801):
-            self.data["Saturation"] = True
+        if (ps_raw_output.max() >= saturation_value) or (ps_raw_output.min() <= -saturation_value):
+            self.data["Saturation"].append(True)
+        else:
+            self.data["Saturation"].append(False)
         
         # Segment the data into individual pulses.
         # For 80000 sample points, we have 40 pulses (10 pulse cycles). 
@@ -184,6 +187,11 @@ class WaveformDP:
             self.data["E_on Spectrum"] = np.array([0.0])
             self.data["DT Spectrum"] = np.array([0.0])
 
+    def clear_last_line(self):
+        for key in self.data.keys():
+            if key not in ["Delay (mm)", "Delay (ps)", "Frequency (THz)"]:
+                self.data[key] = self.data[key][:-1]
+
     def clear_buffers(self):
         """
         Clear the ABCD buffers. Should be called after each step
@@ -229,7 +237,7 @@ class WaveformDP:
                   keys: list = ["Delay (mm)", "A", "B", "C", "D",
                                 "Background noise", "Emitter noise",
                                 "Pump-induced noise", "Total noise",
-                                "OPTP noise"]):
+                                "OPTP noise", "Saturation"]):
         """
         Save the experiment"s data and reset the experiment"s
         attributes.
@@ -238,11 +246,12 @@ class WaveformDP:
         csv for easy access.
         """
         # TODO: Implement saving to file types json and hdf5
-
         min_len = min(len(self.data[key]) for key in keys)
         result = pd.DataFrame({k: self.data[k][:min_len] for k in keys})
         if self.save_type == "txt":
             result.to_csv(f"{self.filename}.txt", sep="\t", index=False)
+            angles = pd.DataFrame({"QWP angle": self.data["QWP angle"]})
+            angles.to_csv(f"{self.filename}_QWP_angles.csv", index=False)
         #     np.savetxt(f"{filename}.txt", pd.DataFrame.from_dict(self.data))
         # elif type == "hdf5":
         #     pd.DataFrame.from_dict(self.data).to_hdf(f"{filename}.h5",
